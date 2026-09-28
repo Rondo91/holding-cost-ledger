@@ -227,7 +227,7 @@ async function callModel(cloud, model, dataUrl) {
     return { ok: false, status: 'parse_failed', message: '这张截图里没找到可用的订单信息，请手动填写' };
   }
 
-  return { ok: true, status: 'ok', data, unsure, modelName: model.name ?? model.id };
+  return { ok: true, status: 'ok', data, unsure };
 }
 
 /* ------------------------------------------------------------------ *
@@ -277,17 +277,25 @@ export async function recognizeOrderScreenshot(file, options = {}) {
   const cloud = getCloud();
   bumpAttempts();   // 一次用户动作算一次，不按模型重试次数计
 
+  // 这次识别花了多久、用了哪个模型，都必须记下来。
+  // 事件时间戳是写库时间（攒批上报会偏移），算不出真实耗时；
+  // 模型名也只能靠人肉读屏幕——这两件事都得让数据自己说。
+  const callStart = performance.now();
+  const elapsed = () => Math.round(performance.now() - callStart);
+
   const candidates = models.slice(0, MAX_MODEL_ATTEMPTS);
   let lastFailure = { ok: false, status: 'call_failed', message: '识别没成功，请手动填写' };
 
   for (const model of candidates) {
-    report(`识别中（${model.name ?? model.id}）`);
-    const outcome = await callModel(cloud, model, dataUrl);
-    if (outcome.ok) return outcome;
+    const name = model.name ?? model.id;
+    report(`识别中（${name}）`);
 
-    lastFailure = outcome;
+    const outcome = await callModel(cloud, model, dataUrl);
+    lastFailure = { ...outcome, modelName: name, durationMs: elapsed() };
+
+    if (outcome.ok) return lastFailure;
     // 内容被拦截、参数错误这类问题换模型也没用，直接收手
-    if (!RETRYABLE_STATUS.has(outcome.status)) return outcome;
+    if (!RETRYABLE_STATUS.has(outcome.status)) return lastFailure;
   }
 
   return lastFailure;

@@ -39,6 +39,8 @@ const ALLOWED_EVENTS = new Set([
 const ALLOWED_PROP_KEYS = new Set([
   'field', 'price_band', 'days_band', 'residual_type', 'recovery_band',
   'status', 'reason', 'code', 'page', 'fields_found', 'fields_unsure', 'section',
+  // AI 环节的可观测性：不记这两项就永远得靠人肉读屏幕才知道用了什么模型、花了多久
+  'model', 'duration_ms',
 ]);
 
 /**

@@ -138,7 +138,8 @@ CREATE TABLE calc_events (
   props JSONB NOT NULL DEFAULT '{}'::jsonb
         CHECK (props - ARRAY['field','price_band','days_band','residual_type',
                              'recovery_band','status','reason','code','page',
-                             'fields_found','fields_unsure','section'] = '{}'::jsonb),
+                             'fields_found','fields_unsure','section',
+                             'model','duration_ms'] = '{}'::jsonb),
   ts TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ON calc_events (ts);

@@ -495,7 +495,9 @@ el.ocrFile?.addEventListener('change', async () => {
 
   if (!out.ok) {
     setOcrNote(out.message || '识别失败，请手动填写。');
-    track('ocr_result', { props: { status: out.status } });
+    track('ocr_result', {
+      props: { status: out.status, model: out.modelName, duration_ms: out.durationMs },
+    });
     if (out.status === 'not_configured' || out.status === 'no_model') {
       markOcrUnavailable('识别能力当前不可用，请手动填写下面的字段。');
     } else {
@@ -509,7 +511,13 @@ el.ocrFile?.addEventListener('change', async () => {
 
   const found = Object.values(out.data).filter((v) => v !== null && v !== undefined).length;
   track('ocr_result', {
-    props: { status: 'ok', fields_found: found, fields_unsure: state.ocr.unsure.length },
+    props: {
+      status: 'ok',
+      fields_found: found,
+      fields_unsure: state.ocr.unsure.length,
+      model: out.modelName,
+      duration_ms: out.durationMs,
+    },
   });
 
   // 把用了哪个模型说出来。用户有权知道自己的截图交给了什么处理
