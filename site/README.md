@@ -47,10 +47,11 @@ python -m http.server 8123 --bind 127.0.0.1
 ## 运行测试
 
 ```bash
-node --test tests/calc.test.js tests/format.test.js tests/validate.test.js tests/views.test.js
+node --test tests/calc.test.js tests/format.test.js tests/validate.test.js tests/views.test.js tests/ocr.test.js
 ```
 
-测试只覆盖纯逻辑层（计算、格式化、校验、渲染字符串），不依赖浏览器，也不需要装任何东西。
+测试只覆盖纯逻辑层（计算、格式化、校验、渲染字符串、模型选型），不依赖浏览器，也不需要装任何东西。
+**DOM 交互层（事件绑定、状态流转）没有自动化测试**——改交互逻辑时请手动走一遍。
 
 ---
 

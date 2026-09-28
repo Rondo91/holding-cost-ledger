@@ -17,7 +17,7 @@ import {
   ocrReviewHTML, escapeHtml,
 } from './views.js';
 import { track, initAnalytics, flush, submitFeedback } from './analytics.js';
-import { recognizeOrderScreenshot, resolveVisionModel, attemptsLeft } from './ocr.js';
+import { recognizeOrderScreenshot, resolveVisionModels, attemptsLeft } from './ocr.js';
 import { isCloudConfigured } from './config.js';
 
 /* ------------------------------------------------------------------ *
@@ -451,8 +451,8 @@ async function refreshOcrAvailability() {
     markOcrUnavailable('本次部署未接入模型服务，识别能力不可用。请手动填写下面的字段，计算结果不受任何影响。');
     return;
   }
-  const { model } = await resolveVisionModel();
-  if (!model) {
+  const { models } = await resolveVisionModels();
+  if (models.length === 0) {
     state.ocr.available = 'unavailable';
     markOcrUnavailable('识别能力当前不可用，请手动填写下面的字段。');
     return;
@@ -512,7 +512,9 @@ el.ocrFile?.addEventListener('change', async () => {
     props: { status: 'ok', fields_found: found, fields_unsure: state.ocr.unsure.length },
   });
 
-  setOcrNote('识别完成。请核对下面每一项，确认后才会填入。');
+  // 把用了哪个模型说出来。用户有权知道自己的截图交给了什么处理
+  const via = out.modelName ? `（${out.modelName}）` : '';
+  setOcrNote(`识别完成${via}。请核对下面每一项，确认后才会填入。`);
   el.ocrResult.innerHTML = `
     ${ocrReviewHTML(out.data, state.ocr.unsure)}
     <div class="btn-row">

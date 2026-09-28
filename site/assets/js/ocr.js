@@ -17,6 +17,10 @@ const TIMEOUT_MS = 45000;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
+/** 一次识别里最多试几个模型。换模型只对「模型自己出问题」有意义 */
+const MAX_MODEL_ATTEMPTS = 2;
+const RETRYABLE_STATUS = new Set(['call_failed', 'parse_failed']);
+
 const SYSTEM_PROMPT = [
   '你是一个电商订单信息抽取器。从用户提供的订单截图中抽取字段，只输出 JSON，不要输出任何解释文字。',
   '无法确定的字段必须置为 null，并把字段名放进 unsure 数组。绝不猜测、绝不编造。',
@@ -29,7 +33,7 @@ const SYSTEM_PROMPT = [
   '- platform：来源平台，例如 京东 / 淘宝 / 天猫 / 拼多多 / 苹果官网。',
 ].join('\n');
 
-let cachedModel = null;
+let cachedModels = null;
 let lookupDone = false;
 
 function attemptsUsed() {
@@ -46,30 +50,69 @@ export function attemptsLeft() {
   return Math.max(0, MAX_ATTEMPTS - attemptsUsed());
 }
 
+/* ------------------------------------------------------------------ *
+ * 模型选型（纯函数，可单测）
+ * ------------------------------------------------------------------ */
+
 /**
- * 找出一个能看图的模型。
- * 稀疏字段规则：只有显式 true 才认为支持；缺失不等于支持。
- * @returns {Promise<{model: object|null, reason: string|null}>}
+ * 把模型目录里可用的视觉模型按偏好排序。
+ *
+ * 排序理由：截图字段抽取是**窄任务且对延迟敏感**——它不需要推理，只需要一次准确的视觉读取。
+ * 让一个推理模型用高思考强度去做这件事，用户要多等十几秒，准确率却不会更好。
+ * 所以「非推理 + 平台默认」排最前，纯粹的推理模型排最后。
+ *
+ * 稀疏字段规则：只有显式 true 才认定「只走推理」；字段缺失视为未知，不因此排除。
  */
-export async function resolveVisionModel() {
+export function rankVisionModels(models) {
+  const usable = (Array.isArray(models) ? models : []).filter(
+    (m) => m && m.disabled !== true && m.supportsImages === true && m.disabledMultimodal !== true
+  );
+  if (usable.length === 0) return [];
+
+  const declaredThinking = (m) => m.onlyReasoning === true;
+  const rank = (m) => {
+    if (!declaredThinking(m) && m.isDefault === true) return 0; // 默认项且不纯推理：最好
+    if (!declaredThinking(m)) return 1;                          // 不纯推理
+    if (m.isDefault === true) return 2;                          // 纯推理但是平台默认
+    return 3;                                                    // 纯推理
+  };
+
+  // Array.prototype.sort 是稳定的，同档位保持目录原有顺序
+  return [...usable].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * 取出按偏好排序的候选模型。
+ * @returns {Promise<{models: object[], reason: string|null}>}
+ */
+export async function resolveVisionModels() {
   const cloud = getCloud();
-  if (!cloud) return { model: null, reason: isCloudConfigured() ? 'no_cloud' : 'not_configured' };
-  if (lookupDone) return cachedModel ? { model: cachedModel, reason: null } : { model: null, reason: 'no_model' };
+  if (!cloud) {
+    return { models: [], reason: isCloudConfigured() ? 'no_cloud' : 'not_configured' };
+  }
+  if (lookupDone) {
+    return cachedModels && cachedModels.length
+      ? { models: cachedModels, reason: null }
+      : { models: [], reason: 'no_model' };
+  }
 
   try {
-    const models = await cloud.llm.models.list();
+    const list = await cloud.llm.models.list();
     lookupDone = true;
-    const list = Array.isArray(models) ? models : [];
-    cachedModel = list.find((m) =>
-      m && m.disabled !== true && m.supportsImages === true && m.disabledMultimodal !== true
-    ) || null;
-    return cachedModel ? { model: cachedModel, reason: null } : { model: null, reason: 'no_model' };
-  } catch (err) {
+    cachedModels = rankVisionModels(list);
+    return cachedModels.length
+      ? { models: cachedModels, reason: null }
+      : { models: [], reason: 'no_model' };
+  } catch {
     lookupDone = true;
-    cachedModel = null;
-    return { model: null, reason: 'lookup_failed' };
+    cachedModels = null;
+    return { models: [], reason: 'lookup_failed' };
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * 单次调用
+ * ------------------------------------------------------------------ */
 
 /** 文件 → data URL（不经过任何网络与服务端存储） */
 function readAsDataURL(file) {
@@ -127,54 +170,10 @@ function normalize(raw) {
   return { data, unsure: [...unsure] };
 }
 
-/**
- * 识别一张订单截图。
- *
- * @param {File} file
- * @param {{ onProgress?: (stage: string) => void }} [options]
- * @returns {Promise<{ok: boolean, status: string, data?: object, unsure?: string[], message?: string}>}
- *   status: ok | invalid_file | too_large | rate_limited | not_configured | no_cloud | no_model
- *         | lookup_failed | call_failed | parse_failed | content_filter
- */
-export async function recognizeOrderScreenshot(file, options = {}) {
-  const report = (stage) => options.onProgress?.(stage);
-
-  if (!file) return { ok: false, status: 'invalid_file', message: '没有拿到图片' };
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return { ok: false, status: 'invalid_file', message: '只支持 PNG、JPG、WebP 格式的截图' };
-  }
-  if (file.size > MAX_FILE_BYTES) {
-    return { ok: false, status: 'too_large', message: '图片超过 8MB，请压缩后再试' };
-  }
-  if (attemptsUsed() >= MAX_ATTEMPTS) {
-    return { ok: false, status: 'rate_limited', message: '本次识别的次数已用完，请手动填写' };
-  }
-
-  report('读取图片');
-  let dataUrl;
-  try {
-    dataUrl = await readAsDataURL(file);
-  } catch {
-    return { ok: false, status: 'invalid_file', message: '图片读取失败，请换一张试试' };
-  }
-
-  report('检查可用模型');
-  const { model, reason } = await resolveVisionModel();
-  if (!model) {
-    return {
-      ok: false,
-      status: reason || 'no_model',
-      message: '截图识别当前不可用，请手动填写下面的字段',
-    };
-  }
-
-  const cloud = getCloud();
+/** 用指定模型识别一次 */
+async function callModel(cloud, model, dataUrl) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-  report('识别中');
-  bumpAttempts();
-
   let text = '';
   let finishReason = null;
 
@@ -202,18 +201,17 @@ export async function recognizeOrderScreenshot(file, options = {}) {
       if (choice?.finish_reason) finishReason = choice.finish_reason;
     }
   } catch (err) {
-    clearTimeout(timer);
     const code = err?.error?.code || err?.code || '';
-    if (code === 'content_filter') {
-      return { ok: false, status: 'content_filter', message: '这张图片无法识别，请手动填写' };
-    }
     return {
       ok: false,
-      status: 'call_failed',
-      message: '识别没成功，可以直接手动填写，不影响后面的计算',
+      status: code === 'content_filter' ? 'content_filter' : 'call_failed',
+      message: code === 'content_filter'
+        ? '这张图片无法识别，请手动填写'
+        : '识别没成功，可以直接手动填写，不影响后面的计算',
     };
+  } finally {
+    clearTimeout(timer);
   }
-  clearTimeout(timer);
 
   if (finishReason === 'content_filter') {
     return { ok: false, status: 'content_filter', message: '这张图片无法识别，请手动填写' };
@@ -229,5 +227,68 @@ export async function recognizeOrderScreenshot(file, options = {}) {
     return { ok: false, status: 'parse_failed', message: '这张截图里没找到可用的订单信息，请手动填写' };
   }
 
-  return { ok: true, status: 'ok', data, unsure };
+  return { ok: true, status: 'ok', data, unsure, modelName: model.name ?? model.id };
+}
+
+/* ------------------------------------------------------------------ *
+ * 对外入口
+ * ------------------------------------------------------------------ */
+
+/**
+ * 识别一张订单截图。
+ *
+ * @param {File} file
+ * @param {{ onProgress?: (stage: string) => void }} [options]
+ * @returns {Promise<{ok: boolean, status: string, data?: object, unsure?: string[], modelName?: string, message?: string}>}
+ *   status: ok | invalid_file | too_large | rate_limited | not_configured | no_cloud | no_model
+ *         | lookup_failed | call_failed | parse_failed | content_filter
+ */
+export async function recognizeOrderScreenshot(file, options = {}) {
+  const report = (stage) => options.onProgress?.(stage);
+
+  if (!file) return { ok: false, status: 'invalid_file', message: '没有拿到图片' };
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return { ok: false, status: 'invalid_file', message: '只支持 PNG、JPG、WebP 格式的截图' };
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    return { ok: false, status: 'too_large', message: '图片超过 8MB，请压缩后再试' };
+  }
+  if (attemptsUsed() >= MAX_ATTEMPTS) {
+    return { ok: false, status: 'rate_limited', message: '本次识别的次数已用完，请手动填写' };
+  }
+
+  report('读取图片');
+  let dataUrl;
+  try {
+    dataUrl = await readAsDataURL(file);
+  } catch {
+    return { ok: false, status: 'invalid_file', message: '图片读取失败，请换一张试试' };
+  }
+
+  const { models, reason } = await resolveVisionModels();
+  if (models.length === 0) {
+    return {
+      ok: false,
+      status: reason || 'no_model',
+      message: '截图识别当前不可用，请手动填写下面的字段',
+    };
+  }
+
+  const cloud = getCloud();
+  bumpAttempts();   // 一次用户动作算一次，不按模型重试次数计
+
+  const candidates = models.slice(0, MAX_MODEL_ATTEMPTS);
+  let lastFailure = { ok: false, status: 'call_failed', message: '识别没成功，请手动填写' };
+
+  for (const model of candidates) {
+    report(`识别中（${model.name ?? model.id}）`);
+    const outcome = await callModel(cloud, model, dataUrl);
+    if (outcome.ok) return outcome;
+
+    lastFailure = outcome;
+    // 内容被拦截、参数错误这类问题换模型也没用，直接收手
+    if (!RETRYABLE_STATUS.has(outcome.status)) return outcome;
+  }
+
+  return lastFailure;
 }
