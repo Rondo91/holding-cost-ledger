@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>设计说明与取舍记录 — 持有成本账本</title>
+<meta name="description" content="12 人访谈的三类需求、四组关键取舍、六项指标口径，以及这份设计目前还不知道的事。">
+<meta name="theme-color" content="#FAFAF8">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="index.html">持有成本账本</a>
+    <nav class="nav" aria-label="主导航">
+      <a class="nav__link" href="index.html">工具</a>
+      <a class="nav__link nav__link--active" href="design.html" aria-current="page">设计说明</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page doc">
+
+  <header class="doc__header">
+    <div class="doc__kicker">产品设计说明 · 取舍记录</div>
+    <h1 class="doc__title">这份东西不是功能清单</h1>
+    <p class="doc__lead">
+      市面上讲"我做了什么"的作品集已经够多了。这一页讲的是<strong>我决定不做什么，以及为什么</strong>——
+      包括一处调研结论和产品主流程互相矛盾的地方，我没有把它藏起来，而是选了一边并说明了代价。
+    </p>
+  </header>
+
+  <!-- ============================ 01 用户洞察 ============================ -->
+  <section class="doc__section">
+    <h2 class="doc__h2"><span class="doc__h2-num">01</span>用户洞察</h2>
+    <p class="doc__intro">
+      访谈了 12 个人，问的是同一个问题：<strong>当你考虑卖掉或换掉一台电子设备时，你实际会做什么？</strong>
+      我没有问"你想要什么功能"——那种问题得到的答案只会是功能清单。
+    </p>
+
+    <div class="doc__body">
+      <h3 class="doc__h3">三类需求，从回答里归纳出来的</h3>
+
+      <div class="quote-list">
+        <div class="quote">
+          <p class="quote__text">"我会先看闲鱼同款现在能卖多少钱，低于我的心理价位就不卖，买入价我不太关心。"</p>
+          <p class="quote__meta"><span class="tag">#1</span><span class="tag tag--accent">只看现价</span></p>
+        </div>
+        <div class="quote">
+          <p class="quote__text">"我会看算一下每天大概花了多少。如果每天成本很高，我可能继续用。"</p>
+          <p class="quote__meta"><span class="tag">#6</span><span class="tag tag--accent">关注成本</span></p>
+        </div>
+        <div class="quote">
+          <p class="quote__text">"手机、电脑这种贵的设备我会查价格，耳机、键盘这些便宜东西就懒得查，能卖就卖。"</p>
+          <p class="quote__meta"><span class="tag">#9</span><span class="tag tag--accent">只看现价</span><span class="tag tag--accent">图省事</span></p>
+        </div>
+        <div class="quote">
+          <p class="quote__text">"如果平台回收方便，我愿意少卖一点，不想议价。"</p>
+          <p class="quote__meta"><span class="tag">#8</span><span class="tag tag--accent">图省事</span></p>
+        </div>
+      </div>
+
+      <p>
+        <strong>A 类｜只看现价（7 人 / 编号 1,2,3,4,5,9,11）</strong>：先查能卖多少，低于心理价位就不卖，几乎不考虑当初花了多少钱。<br>
+        <strong>B 类｜关注成本（3 人 / 编号 4,5,6）</strong>：想知道"亏了多少""每天花了多少"这类需要计算的数字。<br>
+        <strong>C 类｜图省事（3 人 / 编号 7,8,9,12）</strong>：卖给熟人、走平台回收，愿意用价格换省事。
+      </p>
+      <p>
+        类别<strong>不互斥</strong>——编号 9 同时落在 A 和 C，因为它对贵设备查价、对便宜设备懒得查。
+        把 12 个人硬塞进三个互相独立的框里更整齐，但那是假的。
+      </p>
+
+      <h3 class="doc__h3">统计结果</h3>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>关注点</th><th class="num">人数</th><th>编号</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>当前二手售价</td><td class="num">7 / 12</td><td>1, 2, 3, 4, 5, 9, 11</td></tr>
+          <tr><td>当初购买价</td><td class="num">3 / 12</td><td>4, 5, 6</td></tr>
+          <tr><td>真的做了"买入价 vs 现价"的比较</td><td class="num">2 / 12</td><td>4, 5</td></tr>
+          <tr><td>比较结果实际影响了售卖决定</td><td class="num">3 / 12</td><td>1, 2, 6</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="doc__body">
+      <p>
+        <strong>这组数字里藏着一个矛盾，它决定了我后面所有的设计。</strong>
+      </p>
+      <p>
+        7 个人关心现价，只有 3 个人关心买入价，真正把两者放在一起比较的只有 2 个人。
+        但这个产品的核心计算是"日均购置成本 = 实付金额 ÷ 持有天数"——它完全建立在买入价上。
+      </p>
+      <p>
+        换句话说：<strong>我最想提供的那个数字，建立在只有四分之一用户关心的数据上。</strong>
+        这个矛盾必须在下一节正面回答，绕过去的话，产品从第一屏开始就站不住。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================ 02 取舍 ============================ -->
+  <section class="doc__section">
+    <h2 class="doc__h2"><span class="doc__h2-num">02</span>关键取舍</h2>
+    <p class="doc__intro">
+      四组。每一组都是"有一个更省事、更讨喜的选项，我选了另一个"，并写清代价。
+    </p>
+
+    <div class="tradeoff tradeoff--key">
+      <h3 class="tradeoff__title">① 明知 7/12 只关心现价，为什么还是把买入价放在必经第一步</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>调研显示用户更关心"能卖多少"，产品主流程却先要"当初花了多少"。</dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>淘汰</dt>
+          <dd>只做二手价查询。它有数据支持，实现也最简单——调个接口把同款行情列出来就行。</dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>淘汰理由</dt>
+          <dd>
+            <strong>那样做出来的东西就是闲鱼的一个劣化版。</strong>用户没有任何理由不用一个他们已经在用的平台，
+            去用一个功能更少、数据还更旧的新工具。产品会失去存在的理由。
+          </dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd>
+            <strong>用二手价当入口钩子，用持有成本做差异化价值。</strong>
+            二手价是用户本来就在查的东西——顺着他的既有行为接住他；持有成本是他查不到、也算不清的东西——这才是这个产品能立住的地方。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>
+            第一步的"欲望强度"天生低于直接给二手价，用户更容易流失。
+            所以我把"必填项压到 2 个"和"输入即出结果"当成硬约束，而不是体验优化——它们是在替这个取舍兜底。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>推论</dt>
+          <dd>
+            残值那一步的引导，要<strong>借力用户已有的行为</strong>，而不是要求他改变行为。
+            所以文案是"你刚在闲鱼看过？把那台的价格填进来"，而不是"请查询并填写当前市场价"。
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="tradeoff">
+      <h3 class="tradeoff__title">② 两个指标天然对立，我要哪一个</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>
+            "完整计算完成率 ≥ 60%"和"残值补充率 ≥ 40%"是一对互相拉扯的指标。
+            把残值做成必经步骤，残值补充率立刻达标——但用户要么放弃，要么随手编一个数字。
+          </dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd>
+            <strong>完成率优先。</strong>残值走软引导：一个"暂时不需要"的按钮，点了不阻断，结果照给。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>理由</dt>
+          <dd>
+            <strong>编造的价格比没有价格更糟。</strong>没有价格，我们知道这个数缺了，可以如实说明；
+            编造的价格会让一个错误数字看起来和真的一样，还会污染后面所有基于残值的判断。
+            宁可要一个诚实的缺口，也不要一个漂亮的假数据。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>残值补充率大概率达不到 40%。我接受这个数字不好看，但它是真实的。</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="tradeoff">
+      <h3 class="tradeoff__title">③ AI 只让它"读"，不让它"算"</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>
+            AI 能做的事远不止识别：自动联网比价、直接给出"该不该换"的建议、判断这台设备值不值——这些都更有噱头。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>淘汰</dt>
+          <dd>让 AI 走完全流程，用户上传订单，直接得到一个结论。</dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd>
+            <strong>AI 只做"读"，程序只做"算"。</strong>
+            模型负责把截图变成结构化字段，算术全部由确定性代码完成。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>理由</dt>
+          <dd>
+            计算口径必须稳定可解释：<strong>同样的输入必须得到同样的输出。</strong>
+            让模型做算术，等于接受它偶尔算错且无法复现。
+            识别环节也一样——模型说某个字段没把握，界面就标"待确认"，<strong>绝不自动写进计算</strong>。
+            宁可多要用户一次点击，也不要给一个看起来很可信的错数字。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>明确不做</dt>
+          <dd>
+            不推荐该不该换机、不自动联网搜价、不判断耐用度和性价比。
+            这些是"建议"，而这个工具的定位是"算清账"。给建议会把一个可信的工具变成一个讲不清依据的黑箱。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>放弃了最能讲故事的功能。换来的是"输入相同 → 输出相同"这个前提。</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="tradeoff">
+      <h3 class="tradeoff__title">④ 牺牲分析精度，换一个能验证的隐私承诺</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>收集得越多，分析越准。订单截图里有姓名、地址、手机号、订单号，还有精确金额和日期。</dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd><strong>只收集计算所必需的字段，而且是从架构上做不到多收，不是口头承诺。</strong></dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>做法</dt>
+          <dd>
+            ① 订单截图只在浏览器内读成图片数据，直接交给模型识别，<strong>不经过任何存储</strong>；
+            ② 统计埋点不记录金额和日期的原文，只记录它落在哪个区间；
+            ③ 数据表里根本没有姓名、地址、手机号、订单号这些字段；
+            ④ 用数据库层的约束把"只能写这几个字段"钉死，应用层写错也会被拒。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>
+            失去金额层面的分析能力——只能看"3000–6000 元档的人更少补填残值"，
+            看不到精确分布；也无法做任何个体级的追踪分析。这个交换我认为是值的：
+            一个算钱的工具如果连自己的数据边界都说不清，用户凭什么把订单截图交给它。
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============================ 03 指标 ============================ -->
+  <section class="doc__section">
+    <h2 class="doc__h2"><span class="doc__h2-num">03</span>指标设计</h2>
+    <p class="doc__intro">
+      六个指标，每一个都对应一个具体的问题。注意"结果解释展开率"没有目标值——
+      它的作用是<strong>诊断</strong>而不是考核：如果默认解释已经够清楚，这个数就该低。
+    </p>
+
+    <div class="metric-grid">
+      <div class="metric">
+        <div class="metric__name">完整计算完成率</div>
+        <p class="metric__def">进入页面后完成基础输入并看到结果的比例</p>
+        <div class="metric__foot"><span class="metric__target">目标 ≥ 60%</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">残值补充率</div>
+        <p class="metric__def">看到基础结果后，愿意继续填二手成交价的比例</p>
+        <div class="metric__foot"><span class="metric__target">目标 ≥ 40%</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">中位完成时长</div>
+        <p class="metric__def">从开始输入到看到完整结果的时间</p>
+        <div class="metric__foot"><span class="metric__target">目标 ≤ 60 秒</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">决策帮助率</div>
+        <p class="metric__def">认为结果帮助了自己判断下一步的比例</p>
+        <div class="metric__foot"><span class="metric__target">目标 ≥ 60%</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">结果页反馈率</div>
+        <p class="metric__def">看完结果后愿意留下选择或反馈的比例</p>
+        <div class="metric__foot"><span class="metric__target">目标 ≥ 15%</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">结果解释展开率</div>
+        <p class="metric__def">是否需要展开查看公式、口径和假设</p>
+        <div class="metric__foot"><span class="metric__target">仅观测，不设目标</span><span class="metric__n">n = 0</span></div>
+      </div>
+    </div>
+
+    <div class="doc__body">
+      <p>
+        <strong>为什么反馈只问两个问题。</strong>
+        "你满意吗"这种问题拿不到有用信息——几乎所有人都会选"满意"，而且它无法验证任何假设。
+        换成"这个结果帮助你判断下一步了吗"+"你接下来更可能做什么"就能回答一个真问题：
+        <strong>这些数字有没有真的改变用户的决定</strong>，而不只是被看过。
+      </p>
+      <p>
+        <strong>为什么"结果解释展开率"没有目标。</strong>
+        展开率高不代表产品好，可能恰恰说明默认的解释没讲明白。它的正确用途是做诊断：
+        如果展开率高，说明默认文案要改；如果低，说明默认解释已经够了。
+        给诊断性指标设 KPI，只会逼着人把它刷上去。
+      </p>
+    </div>
+  </section>
+
+  <!-- ==================== 04 上线后发现的问题 ==================== -->
+  <section class="doc__section">
+    <h2 class="doc__h2"><span class="doc__h2-num">04</span>上线之后：埋点抓到的第一个问题</h2>
+    <p class="doc__intro">
+      网站上线接上后端之后，我自己走了一遍完整流程。就是这一遍，埋点记录里出现了两条对不上的时间线。
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>时间</th><th>事件</th><th>记录的金额档位</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">23:19:39</td><td>看到基础结果</td><td>&lt; 500 元</td></tr>
+          <tr><td class="num">23:19:49</td><td>金额字段完成输入</td><td>3000 – 6000 元</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="doc__body">
+      <p>
+        「看到基础结果」比「金额输入完成」早了 10 秒，而且它记录的金额档位是 <strong>&lt; 500 元</strong>。
+        也就是说，<strong>这个节点在金额还没输完的时候就触发了。</strong>
+      </p>
+
+      <h3 class="doc__h3">根因：即时计算是按字符触发的</h3>
+      <p>
+        我把「输入即出结果」当成硬约束来做，所以每一次按键都会重新计算并重画结果。
+        用户想输入 4999，敲下第一个「4」的瞬间，系统就认为「4 元」是一个有效金额，把它当成了结果——
+        而且因为漏斗节点只记一次，这个假的档位就被永久记录下来了。
+      </p>
+
+      <h3 class="doc__h3">它同时伤害了两件事</h3>
+      <p>
+        <strong>用户体验上</strong>，用户会看到一串一闪而过的错数字：¥4/天 → ¥49/天 → ¥499/天 → ¥13.6/天。
+        这不是"灵敏"，这是噪音，而且会让人怀疑这个工具算得对不对。
+      </p>
+      <p>
+        <strong>数据上</strong>，一次"输到一半"被记成了一次"完成"。完成率会被虚高，
+        金额档位全是假的，所有按档位分层的分析都会跟着错。指标失真的方向还是最危险的那种——<strong>偏乐观</strong>。
+      </p>
+
+      <h3 class="doc__h3">改法</h3>
+      <p>
+        把「计算」和「判定」拆成两条时间线：视觉更新仍然紧跟输入（防抖 200ms，打字时数字不乱跳），
+        但<strong>结果区的首次出现、以及所有漏斗节点，都等输入停稳 900 毫秒或失焦之后才发生</strong>。
+        用户不会觉得多了一步，但记录下来的每一次"完成"都是真的完成。
+      </p>
+
+      <h3 class="doc__h3">顺带修掉的第二个问题</h3>
+      <p>
+        事件时间戳是数据库在写入时生成的，而为了避免频繁请求，非关键事件是攒批上报的——
+        这意味着事件的记录时间最多会比真实发生时间晚几秒。
+        偏偏「中位完成时长」就是用两个事件的时间戳相减算出来的。
+        所以我把页面访问、开始输入、看到结果这几个节点改成即时上报：<strong>测量方式本身不能成为误差源。</strong>
+      </p>
+
+      <h3 class="doc__h3">仍然没解决的</h3>
+      <p>
+        如果用户真的在一个数字中间停顿超过 900 毫秒，它还是会被当成一次完成。
+        彻底解决要么接受「必须失焦才算完成」的交互代价，要么给金额字段单独做一层输入校验。
+        这是一个取舍，我选了成本低的那一边，但没有把它说成已经解决。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================ 05 局限 ============================ -->
+  <section class="doc__section">
+    <h2 class="doc__h2"><span class="doc__h2-num">05</span>我还不知道的事</h2>
+    <p class="doc__intro">
+      这一节看着像自曝其短。不放这节，前面所有漂亮的推理都不可信。
+    </p>
+
+    <div class="limit-list">
+      <div class="limit">
+        <strong>六项指标里的数据全部来自我自己，不是真实用户。</strong>
+        目前库里只有 7 次页面访问和 1 次完整流程，全是我上线后自测留下的。
+        上面那一排的 n 按真实用户算仍然是 <strong>0</strong>。
+        这一页展示的是<strong>"我打算怎么验证"，不是"我验证通过了"</strong>——
+        把目标值写成"已达成"，是这个作品里最容易做、也最没有价值的一件事。
+      </div>
+      <div class="limit">
+        <strong>访谈样本又小又有偏。</strong>
+        12 个人全部来自熟人圈和校园人群，"图省事"这一类（愿用价格换省事）
+        在更看重时间成本的用户里可能被严重低估。
+        样本量小到这个程度，任何百分比都只能当方向，不能当结论。
+      </div>
+      <div class="limit">
+        <strong>埋点会丢数据。</strong>
+        用户关掉页面的瞬间，最后一批事件大概率送不出去。
+        所以真实跑出来的指标应当被理解为<strong>下界估计</strong>：实际完成率只会比记录到的高，不会更低。
+      </div>
+      <div class="limit">
+        <strong>二手价是用户自己填的，本身就是估算。</strong>
+        平台挂牌价普遍高于实际成交价，用户凭印象填的数字误差可能很大。
+        区间输入能部分缓解这个问题，但缓解不等于解决。
+      </div>
+      <div class="limit">
+        <strong>访谈里的分类不互斥。</strong>
+        A/B/C 三类是按回答倾向归纳的，编号 9 同时落在两类里。
+        如果要严格统计，需要重新设计访谈提纲，把互斥作为前提。
+      </div>
+    </div>
+
+    <div class="doc__body">
+      <h3 class="doc__h3">如果拿到 30 个以上的真实样本，我第一个要看什么</h3>
+      <p>
+        先看<strong>完整计算完成率有没有到 60%</strong>。它是整个漏斗的地基：地基不成立，后面所有数字都没有解释价值。
+      </p>
+      <p>
+        如果没到，我的第一假设是<strong>"用户记不清当初花了多少钱"</strong>——这恰好是取舍①留下的代价。
+        验证方式是看"输入开始率"和"输入完成率"之间的落差：
+        如果大量用户在填了日期之后卡在金额上，假设成立，那么把截图识别提到更显眼的位置就是下一步该做的事。
+      </p>
+      <p>
+        这也顺带回答了取舍③：<strong>AI 在这里的价值不是炫技，而是替用户找回一个他自己也记不清的数字。</strong>
+      </p>
+    </div>
+  </section>
+
+  <div class="notice notice--accent">
+    <div class="notice__title">这份设计的边界</div>
+    <p>它只做成本计算。不判断设备值不值得继续用，不推荐换机，不估价、不撮合交易。
+       一旦开始给建议，它就从"可信的计算工具"变成"讲不清依据的黑箱"——
+       而前者才是用户愿意把订单截图交出来的理由。</p>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <div class="footer__inner">
+    <p>全部结果均为估算，不构成交易或投资建议。</p>
+    <div class="footer__links">
+      <a href="index.html">← 回到工具</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>持有成本账本 — 算清一台设备每天花掉你多少钱</title>
+<meta name="description" content="填入购买日期和实付金额，立刻看到日均购置成本；再补充当前二手价，得到扣除残值后的真实持有成本和回收率。不需要注册，截图不上传。">
+<meta name="theme-color" content="#FAFAF8">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="index.html">持有成本账本</a>
+    <nav class="nav" aria-label="主导航">
+      <a class="nav__link nav__link--active" href="index.html" aria-current="page">工具</a>
+      <a class="nav__link" href="design.html">设计说明</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- ================= 分区 A：输入 ================= -->
+  <section class="section" id="sec-input">
+    <h1 class="page__title">这台设备，你每天为它花了多少钱？</h1>
+    <p class="page__sub">填入购买日期和实付金额就能得到第一个结果。不需要注册，不保存你填的数字。</p>
+
+    <div class="ocr" id="ocr">
+      <div class="ocr__head">
+        <span class="ocr__title">从订单截图自动填入</span>
+        <span class="ocr__tag">AI 识别</span>
+      </div>
+      <p class="ocr__desc">
+        上传订单截图，自动识别设备名称、下单日期和实付金额。截图只在你的浏览器里读取并直接交给模型，
+        <strong>不会上传保存</strong>；识别结果需要你逐项确认后才会用于计算。
+      </p>
+      <div class="ocr__actions">
+        <label class="btn btn--ghost" for="ocr-file">选择截图</label>
+        <input type="file" id="ocr-file" accept="image/png,image/jpeg,image/webp" class="sr-only">
+        <span class="ocr__filename" id="ocr-filename"></span>
+      </div>
+      <div class="ocr__progress" id="ocr-progress" hidden></div>
+      <div class="ocr-result" id="ocr-result" hidden></div>
+    </div>
+
+    <form class="form" id="form" novalidate autocomplete="off">
+      <div class="field">
+        <label class="field__label" for="f-device">设备名称<span class="field__req">选填</span></label>
+        <input class="field__input" id="f-device" name="device" type="text" maxlength="60"
+               placeholder="例如 iPhone 13 128G" autocomplete="off">
+        <p class="field__error" id="e-device" hidden></p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="f-date">购买日期<span class="field__req">必填</span></label>
+        <input class="field__input" id="f-date" name="purchaseDate" type="date" max="2099-12-31">
+        <p class="field__error" id="e-date" hidden></p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="f-price">实际支付金额<span class="field__req">必填</span></label>
+        <div class="input-affix">
+          <span class="input-affix__sign" aria-hidden="true">¥</span>
+          <input class="input-affix__input" id="f-price" name="price" type="text"
+                 inputmode="decimal" placeholder="4999" autocomplete="off" aria-describedby="h-price">
+        </div>
+        <p class="field__hint" id="h-price">已扣除优惠后的实付金额，不含同一订单里的其他商品。</p>
+        <p class="field__error" id="e-price" hidden></p>
+      </div>
+    </form>
+  </section>
+
+  <!-- ================= 分区 B：基础结果 ================= -->
+  <section class="section" id="sec-base" hidden>
+    <h2 class="section__title">当前持有成本</h2>
+    <div id="base-body"></div>
+
+    <div class="residual-call" id="residual-call">
+      <div id="residual-body"></div>
+
+      <div id="residual-form" hidden>
+        <div class="field">
+          <span class="field__label">当前预计二手价</span>
+          <div class="segmented" id="sh-mode" role="group" aria-label="价格填写方式">
+            <button type="button" class="segmented__btn" data-mode="point" aria-pressed="true">一个价格</button>
+            <button type="button" class="segmented__btn" data-mode="range" aria-pressed="false">价格区间</button>
+          </div>
+        </div>
+
+        <div class="field" id="sh-point-wrap">
+          <div class="input-affix">
+            <span class="input-affix__sign" aria-hidden="true">¥</span>
+            <input class="input-affix__input" id="f-sh" type="text"
+                   inputmode="decimal" placeholder="2000" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="field range-inputs" id="sh-range-wrap" hidden>
+          <div class="input-affix">
+            <span class="input-affix__sign" aria-hidden="true">¥</span>
+            <input class="input-affix__input" id="f-sh-min" type="text"
+                   inputmode="decimal" placeholder="最低" autocomplete="off" aria-label="二手价下限">
+          </div>
+          <span class="range-inputs__sep" aria-hidden="true">–</span>
+          <div class="input-affix">
+            <span class="input-affix__sign" aria-hidden="true">¥</span>
+            <input class="input-affix__input" id="f-sh-max" type="text"
+                   inputmode="decimal" placeholder="最高" autocomplete="off" aria-label="二手价上限">
+          </div>
+        </div>
+
+        <p class="field__hint">建议填近期同款的实际成交价，不是平台挂牌价。不确定就填个区间，结论一样成立。</p>
+        <p class="field__error" id="e-sh" hidden></p>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn--quiet" data-action="residual-close">收起</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 分区 C：完整结果 ================= -->
+  <section class="section" id="sec-full" hidden>
+    <h2 class="section__title">扣除残值后</h2>
+    <div id="full-body"></div>
+  </section>
+
+  <!-- ================= 公式与口径（弱层级，默认收起） ================= -->
+  <details class="details" id="formula-details" hidden>
+    <summary class="details__summary">计算口径、公式与假设</summary>
+    <div class="details__body" id="formula-body"></div>
+  </details>
+
+  <div class="btn-row" id="feedback-entry" hidden style="margin-top:26px">
+    <button type="button" class="btn btn--quiet" data-action="feedback-open">这两个数字对你有用吗？留下两句反馈</button>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <div class="footer__inner">
+    <p><strong>数据说明</strong>：本站不要求注册，不收集姓名、地址、手机号、订单号。上传的订单截图只在你的浏览器内读取，
+       直接交给模型识别，不会上传保存。统计只记录匿名的操作事件与金额区间，不记录你填写的具体数值。</p>
+    <p>全部结果均为估算，不构成交易或投资建议。计算口径与设计取舍见
+       <a href="design.html">设计说明</a>。</p>
+  </div>
+</footer>
+
+<!-- 反馈弹层 -->
+<div class="feedback" id="feedback" hidden role="dialog" aria-modal="true" aria-labelledby="fb-title">
+  <div class="feedback__panel">
+    <div class="feedback__title" id="fb-title">两个问题</div>
+    <p class="feedback__desc">用来验证这个结果有没有真的影响你的判断。只有这两问，没有「你满意吗」。</p>
+
+    <div class="feedback__block">
+      <div class="feedback__q"><span class="feedback__q-num">1</span>这个结果帮助你判断下一步了吗？</div>
+      <div class="choice-list" data-q="helpful">
+        <button type="button" class="choice" data-value="yes" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>有帮助</button>
+        <button type="button" class="choice" data-value="no" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>没有帮助</button>
+        <button type="button" class="choice" data-value="unsure" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>说不上来</button>
+      </div>
+    </div>
+
+    <div class="feedback__block">
+      <div class="feedback__q"><span class="feedback__q-num">2</span>你接下来更可能：</div>
+      <div class="choice-list" data-q="next_action">
+        <button type="button" class="choice" data-value="continue" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>继续用</button>
+        <button type="button" class="choice" data-value="check_price" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>去查二手价</button>
+        <button type="button" class="choice" data-value="sell" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>卖掉</button>
+        <button type="button" class="choice" data-value="replace" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>换新</button>
+        <button type="button" class="choice" data-value="unsure" aria-pressed="false"><span class="choice__dot" aria-hidden="true"></span>暂时不确定</button>
+      </div>
+    </div>
+
+    <div class="feedback__actions">
+      <button type="button" class="btn btn--primary" id="fb-submit" disabled>提交</button>
+      <button type="button" class="btn btn--quiet" id="fb-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
