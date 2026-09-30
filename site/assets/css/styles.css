@@ -54,6 +54,11 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* hidden 属性必须能压过一切布局样式。
+   此前 .range-inputs / .btn-row / .btn 的 display 会盖掉浏览器对 [hidden] 的默认
+   display:none，导致「一个价格」模式下区间输入框照常显示。逐个打补丁会漏，这里一次收口。 */
+[hidden] { display: none !important; }
+
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
