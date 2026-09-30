@@ -59,6 +59,7 @@ const el = {
   ocr: $('#ocr'),
   ocrFile: $('#ocr-file'),
   ocrFilename: $('#ocr-filename'),
+  ocrThumb: $('#ocr-thumb'),
   ocrProgress: $('#ocr-progress'),
   ocrResult: $('#ocr-result'),
 };
@@ -67,7 +68,7 @@ const el = {
  * State
  * ------------------------------------------------------------------ */
 
-/** pending → 未决定 / form-open → 表单展开 / skipped → 明确跳过 */
+/** residualChoice：pending 未决定 / skipped 明确跳过；residualFormOpen：表单是否展开（两者正交） */
 const state = {
   deviceName: '',
   purchaseDate: '',
@@ -77,6 +78,7 @@ const state = {
   shMinRaw: '',
   shMaxRaw: '',
   residualChoice: 'pending',
+  residualFormOpen: false,
   touched: { device: false, date: false, price: false, sh: false },
   ocr: { data: null, unsure: [], busy: false, available: 'checking' },
   feedback: { helpful: null, nextAction: null },
@@ -148,6 +150,8 @@ function applyFieldState(inputEl, errorEl, outcome, { show }) {
   const target = inputEl.closest('.input-affix') || inputEl;
   target.classList.toggle('is-invalid', bad);
   target.classList.toggle('is-warn', !bad && soft);
+  // 读屏需要知道字段本身无效；错误文本由 role="status" 的节点播报
+  inputEl.setAttribute('aria-invalid', bad ? 'true' : 'false');
 
   if (!errorEl) return;
 
@@ -179,6 +183,22 @@ function validateAll({ show }) {
  * Render
  * ------------------------------------------------------------------ */
 
+/* 当前处于可见状态的结果类元素：只在「隐藏 → 显示」的沿上播出现动画 */
+const visibleNow = new WeakSet();
+function animateNewlyShown() {
+  [el.secBase, el.secFull, el.formula, el.feedbackEntry].forEach((node) => {
+    if (!node) return;
+    if (!node.hidden && !visibleNow.has(node)) {
+      visibleNow.add(node);
+      node.classList.remove('reveal-in');
+      void node.offsetWidth;   // 重启动画（同一元素反复出现时）
+      node.classList.add('reveal-in');
+    } else if (node.hidden) {
+      visibleNow.delete(node);
+    }
+  });
+}
+
 /**
  * 只做 DOM 更新，不产生任何埋点。
  * 埋点与「结果第一次真的被看到」绑定，出现的时机由 requestUpdate 决定。
@@ -193,8 +213,12 @@ function render() {
   el.secBase.hidden = !hasBase;
   if (hasBase) {
     el.baseBody.innerHTML = baseSectionHTML(result);
-    el.residualBody.innerHTML = residualAreaHTML(state.residualChoice);
-    el.residualForm.hidden = state.residualChoice !== 'form-open';
+    el.residualBody.innerHTML = residualAreaHTML(state.residualChoice, {
+      formOpen: state.residualFormOpen,
+      residual: result.hasResidual ? result.residual : null,
+      isRange: result.isRange,
+    });
+    el.residualForm.hidden = !state.residualFormOpen;
     el.shPointWrap.hidden = state.shMode !== 'point';
     el.shRangeWrap.hidden = state.shMode !== 'range';
   }
@@ -210,13 +234,17 @@ function render() {
     el.formulaBody.dataset.ready = '1';
   }
 
-  // 反馈入口：看到结果之后才出现
-  el.feedbackEntry.hidden = !hasBase;
+  // 反馈入口：看到「完整结果」之后才出现。
+  // 两问针对的是净持有支出与回收率；只看到基础结果就提问，
+  // 用户回答的是数字好不好看，不是它有没有影响判断（v1.6 口径变更，见 CHANGELOG）
+  el.feedbackEntry.hidden = !hasFull;
 
   // 分段按钮状态
   el.shMode.querySelectorAll('[data-mode]').forEach((btn) => {
     btn.setAttribute('aria-pressed', String(btn.dataset.mode === state.shMode));
   });
+
+  animateNewlyShown();
 }
 
 /**
@@ -389,7 +417,7 @@ function bindActions() {
     const action = btn.dataset.action;
 
     if (action === 'residual-open') {
-      state.residualChoice = 'form-open';
+      state.residualFormOpen = true;
       render();
       el.sh.focus();
       return;
@@ -397,14 +425,15 @@ function bindActions() {
 
     if (action === 'residual-skip') {
       state.residualChoice = 'skipped';
+      state.residualFormOpen = false;
       track('residual_skipped', { step: 'residual' });
       render();
       return;
     }
 
     if (action === 'residual-close') {
-      const { result } = derive();
-      state.residualChoice = result && result.hasResidual ? 'form-open' : 'pending';
+      // 收起只关表单；已填的值由摘要态承接，用户随时能确认自己填过什么
+      state.residualFormOpen = false;
       render();
       return;
     }
@@ -475,6 +504,14 @@ el.ocrFile?.addEventListener('change', async () => {
   if (!file) return;
 
   el.ocrFilename.textContent = file.name;
+  // 本地缩略图：只在浏览器内预览，让用户确认「就是这张图」
+  if (el.ocrThumb) {
+    if (el.ocrThumb.dataset.url) URL.revokeObjectURL(el.ocrThumb.dataset.url);
+    const url = URL.createObjectURL(file);
+    el.ocrThumb.dataset.url = url;
+    el.ocrThumb.src = url;
+    el.ocrThumb.hidden = false;
+  }
   el.ocrResult.hidden = true;
   el.ocrResult.innerHTML = '';
   track('ocr_upload_started', { step: 'input' });
@@ -485,13 +522,16 @@ el.ocrFile?.addEventListener('change', async () => {
     return;
   }
 
-  setOcrNote('正在识别，通常需要几秒…');
+  // 实测一次识别约 10–20 秒（v1.3 duration_ms 落库值 18.2s），文案按实话说
+  setOcrNote('正在识别，通常需要 10–20 秒…');
   state.ocr.busy = true;
+  el.ocrProgress.classList.add('is-busy');
 
   const out = await recognizeOrderScreenshot(file, {
     onProgress: (stage) => setOcrNote(`${stage}…`),
   });
   state.ocr.busy = false;
+  el.ocrProgress.classList.remove('is-busy');
 
   if (!out.ok) {
     setOcrNote(out.message || '识别失败，请手动填写。');
@@ -593,24 +633,55 @@ function applyOcrResult() {
   setOcrNote('已填入。下面是按识别结果算出的持有成本，请留意是否正确。');
 
   requestUpdate({ showErrors: true, settleNow: true });
-  el.secBase.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.secBase.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
 }
 
 /* ------------------------------------------------------------------ *
  * 反馈
  * ------------------------------------------------------------------ */
 
+let feedbackLastFocus = null;
+
 function openFeedback() {
+  feedbackLastFocus = document.activeElement;
   el.feedback.hidden = false;
   track('feedback_opened', { step: 'full' });
   document.body.style.overflow = 'hidden';
+  // 重新打开时恢复提交按钮（上次提交中被禁用/改写文案）
+  el.fbSubmit.disabled = !(state.feedback.helpful && state.feedback.nextAction);
+  el.fbSubmit.textContent = '提交';
+  // aria-modal 声明了模态，焦点就必须真的进来
+  el.feedback.querySelector('.feedback__panel')?.focus();
 }
 
 function closeFeedback(answered) {
   el.feedback.hidden = true;
   document.body.style.overflow = '';
   if (!answered) track('feedback_dismissed', { step: 'full' });
+  // 焦点归还给触发者，键盘/读屏用户不丢位置
+  if (feedbackLastFocus && typeof feedbackLastFocus.focus === 'function') {
+    feedbackLastFocus.focus();
+  }
+  feedbackLastFocus = null;
 }
+
+/* Tab 键在弹层内循环，不逃逸到背景 */
+el.feedback?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || el.feedback.hidden) return;
+  const items = Array.from(el.feedback.querySelectorAll('button:not([disabled])'));
+  if (items.length === 0) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey && (active === first || active.classList.contains('feedback__panel'))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
 
 el.fbSubmit?.addEventListener('click', async () => {
   const { helpful, nextAction } = state.feedback;

@@ -61,11 +61,27 @@ export function baseSectionHTML(result) {
 
 /**
  * 残值入口 / 状态说明。
- * 用户选择「暂时不需要」时明确说明未计入残值，而不是显示 0 元。
+ * 三态：未决定（引导）→ 已跳过（明确「未计入残值」而不是 0 元）→ 已填写（摘要 + 修改入口）。
+ * 「是否跳过」与「表单是否展开」是两个正交状态，表单展开时此处返回空，避免重复。
+ *
+ * @param {'pending'|'skipped'} choice
+ * @param {{ formOpen?: boolean, residual?: number|number[]|null, isRange?: boolean }} opts
  */
-export function residualAreaHTML(choice) {
-  // 表单展开时不再显示引导，避免与表单重复
-  if (choice === 'form-open') return '';
+export function residualAreaHTML(choice, { formOpen = false, residual = null, isRange = false } = {}) {
+  if (formOpen) return '';
+
+  // 已填写：收起表单后仍要能看到自己填的是什么
+  if (residual !== null && residual !== undefined) {
+    const text = isRange ? formatCurrencyRange(residual) : formatCurrency(residual);
+    return `
+      <div class="notice">
+        <div class="notice__title">已填写当前二手价：${text}</div>
+        <p>下方「扣除残值后」的结果按这个价格计算。</p>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn--ghost" data-action="residual-open">修改二手价</button>
+      </div>`;
+  }
 
   if (choice === 'skipped') {
     return `
@@ -109,7 +125,7 @@ function heroFor(fullResult) {
       ? formatCurrencyRange(asGain(netSpend))
       : formatCurrency(asGain(netSpend));
     return `
-      <div class="result-hero">
+      <div class="result-hero result-hero--final">
         <div class="result-hero__label">已回本，净收益</div>
         <div class="result-hero__value">${gainHTML}</div>
         <div class="result-hero__note">
@@ -134,7 +150,7 @@ function heroFor(fullResult) {
     : '';
 
   return `
-    <div class="result-hero">
+    <div class="result-hero result-hero--final">
       <div class="result-hero__label">估算净持有支出</div>
       <div class="result-hero__value">${valueHTML}</div>
       <div class="result-hero__note">${residualText} · 估算值</div>

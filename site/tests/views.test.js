@@ -48,7 +48,22 @@ test('残值入口两种状态文案正确', () => {
   assert.ok(skipped.includes('现在补充二手价'));
 
   // 表单展开时不再重复引导
-  assert.equal(residualAreaHTML('form-open'), '');
+  assert.equal(residualAreaHTML('pending', { formOpen: true }), '');
+});
+
+test('残值已填写：收起表单后显示摘要与修改入口', () => {
+  const point = residualAreaHTML('pending', { residual: 2200, isRange: false });
+  assert.ok(point.includes('已填写当前二手价'));
+  assert.ok(point.includes('¥2,200'));
+  assert.ok(point.includes('修改二手价'));
+
+  const range = residualAreaHTML('pending', { residual: [2000, 3000], isRange: true });
+  assert.ok(range.includes('¥2,000 – ¥3,000'), `实际输出：${range}`);
+
+  // 摘要态优先于「已跳过」提示（有值就不可能处于未计入状态）
+  const withSkipped = residualAreaHTML('skipped', { residual: 2200 });
+  assert.ok(withSkipped.includes('已填写当前二手价'));
+  assert.ok(!withSkipped.includes('未计入残值'));
 });
 
 test('完整结果：点值形态', () => {

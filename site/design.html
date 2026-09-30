@@ -6,6 +6,7 @@
 <title>设计说明与取舍记录 — 持有成本账本</title>
 <meta name="description" content="12 人访谈的三类需求、四组关键取舍、六项指标口径，以及这份设计目前还不知道的事。">
 <meta name="theme-color" content="#FAFAF8">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
@@ -16,7 +17,20 @@
     <nav class="nav" aria-label="主导航">
       <a class="nav__link" href="index.html">工具</a>
       <a class="nav__link nav__link--active" href="design.html" aria-current="page">设计说明</a>
+      <button type="button" class="nav__link nav__link--creator" id="creator-btn"
+              aria-expanded="false" aria-controls="creator">创作者</button>
     </nav>
+
+    <div class="creator" id="creator" hidden>
+      <div class="creator__panel" role="dialog" aria-label="创作者信息">
+        <div class="creator__head">
+          <span class="creator__label">创作者</span>
+          <span class="creator__name">WCF</span>
+        </div>
+        <p class="creator__desc">这是个人作品集项目，欢迎直接反馈</p>
+        <a class="creator__mail" href="mailto:chengfengwu50@gmail.com">chengfengwu50@gmail.com</a>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -289,7 +303,7 @@
       </div>
       <div class="metric">
         <div class="metric__name">结果页反馈率</div>
-        <p class="metric__def">看完结果后愿意留下选择或反馈的比例</p>
+        <p class="metric__def">看到扣除残值后的完整结果后，愿意留下反馈的比例（反馈入口只在完整结果后出现，v1.6 起）</p>
         <div class="metric__foot"><span class="metric__target">目标 ≥ 15%</span><span class="metric__n">n = 0</span></div>
       </div>
       <div class="metric">
@@ -463,5 +477,6 @@
   </div>
 </footer>
 
+<script type="module" src="assets/js/creator.js"></script>
 </body>
 </html>

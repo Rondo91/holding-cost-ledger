@@ -6,6 +6,7 @@
 <title>持有成本账本 — 算清一台设备每天花掉你多少钱</title>
 <meta name="description" content="填入购买日期和实付金额，立刻看到日均购置成本；再补充当前二手价，得到扣除残值后的真实持有成本和回收率。不需要注册，截图不上传。">
 <meta name="theme-color" content="#FAFAF8">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
@@ -16,7 +17,20 @@
     <nav class="nav" aria-label="主导航">
       <a class="nav__link nav__link--active" href="index.html" aria-current="page">工具</a>
       <a class="nav__link" href="design.html">设计说明</a>
+      <button type="button" class="nav__link nav__link--creator" id="creator-btn"
+              aria-expanded="false" aria-controls="creator">创作者</button>
     </nav>
+
+    <div class="creator" id="creator" hidden>
+      <div class="creator__panel" role="dialog" aria-label="创作者信息">
+        <div class="creator__head">
+          <span class="creator__label">创作者</span>
+          <span class="creator__name">WCF</span>
+        </div>
+        <p class="creator__desc">这是个人作品集项目，欢迎直接反馈</p>
+        <a class="creator__mail" href="mailto:chengfengwu50@gmail.com">chengfengwu50@gmail.com</a>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -40,6 +54,7 @@
         <label class="btn btn--ghost" for="ocr-file">选择截图</label>
         <input type="file" id="ocr-file" accept="image/png,image/jpeg,image/webp" class="sr-only">
         <span class="ocr__filename" id="ocr-filename"></span>
+        <img class="ocr__thumb" id="ocr-thumb" alt="已选择的订单截图预览" hidden>
       </div>
       <div class="ocr__progress" id="ocr-progress" hidden></div>
       <div class="ocr-result" id="ocr-result" hidden></div>
@@ -50,13 +65,13 @@
         <label class="field__label" for="f-device">设备名称<span class="field__req">选填</span></label>
         <input class="field__input" id="f-device" name="device" type="text" maxlength="60"
                placeholder="例如 iPhone 13 128G" autocomplete="off">
-        <p class="field__error" id="e-device" hidden></p>
+        <p class="field__error" id="e-device" role="status" hidden></p>
       </div>
 
       <div class="field">
         <label class="field__label" for="f-date">购买日期<span class="field__req">必填</span></label>
         <input class="field__input" id="f-date" name="purchaseDate" type="date" max="2099-12-31">
-        <p class="field__error" id="e-date" hidden></p>
+        <p class="field__error" id="e-date" role="status" hidden></p>
       </div>
 
       <div class="field">
@@ -67,7 +82,7 @@
                  inputmode="decimal" placeholder="4999" autocomplete="off" aria-describedby="h-price">
         </div>
         <p class="field__hint" id="h-price">已扣除优惠后的实付金额，不含同一订单里的其他商品。</p>
-        <p class="field__error" id="e-price" hidden></p>
+        <p class="field__error" id="e-price" role="status" hidden></p>
       </div>
     </form>
   </section>
@@ -82,7 +97,7 @@
 
       <div id="residual-form" hidden>
         <div class="field">
-          <span class="field__label">当前预计二手价</span>
+          <label class="field__label" for="f-sh">当前预计二手价</label>
           <div class="segmented" id="sh-mode" role="group" aria-label="价格填写方式">
             <button type="button" class="segmented__btn" data-mode="point" aria-pressed="true">一个价格</button>
             <button type="button" class="segmented__btn" data-mode="range" aria-pressed="false">价格区间</button>
@@ -112,7 +127,7 @@
         </div>
 
         <p class="field__hint">建议填近期同款的实际成交价，不是平台挂牌价。不确定就填个区间，结论一样成立。</p>
-        <p class="field__error" id="e-sh" hidden></p>
+        <p class="field__error" id="e-sh" role="status" hidden></p>
 
         <div class="btn-row">
           <button type="button" class="btn btn--quiet" data-action="residual-close">收起</button>
@@ -125,6 +140,11 @@
   <section class="section" id="sec-full" hidden>
     <h2 class="section__title">扣除残值后</h2>
     <div id="full-body"></div>
+
+    <button type="button" class="feedback-entry" id="feedback-entry" data-action="feedback-open" hidden>
+      <span class="feedback-entry__title">这两个数字对你有用吗？留下两句反馈</span>
+      <span class="feedback-entry__sub">两问，10 秒</span>
+    </button>
   </section>
 
   <!-- ================= 公式与口径（弱层级，默认收起） ================= -->
@@ -132,10 +152,6 @@
     <summary class="details__summary">计算口径、公式与假设</summary>
     <div class="details__body" id="formula-body"></div>
   </details>
-
-  <div class="btn-row" id="feedback-entry" hidden style="margin-top:26px">
-    <button type="button" class="btn btn--quiet" data-action="feedback-open">这两个数字对你有用吗？留下两句反馈</button>
-  </div>
 
 </main>
 
@@ -150,7 +166,7 @@
 
 <!-- 反馈弹层 -->
 <div class="feedback" id="feedback" hidden role="dialog" aria-modal="true" aria-labelledby="fb-title">
-  <div class="feedback__panel">
+  <div class="feedback__panel" tabindex="-1">
     <div class="feedback__title" id="fb-title">两个问题</div>
     <p class="feedback__desc">用来验证这个结果有没有真的影响你的判断。只有这两问，没有「你满意吗」。</p>
 
@@ -182,6 +198,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script type="module" src="assets/js/creator.js"></script>
 <script type="module" src="assets/js/app.js"></script>
 </body>
 </html>

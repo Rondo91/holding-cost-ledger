@@ -27,8 +27,9 @@
 | `--border-strong` | `#D0D0CB` | 强描边 |
 | `--text` | `#1E1E1C` | 正文（深灰近黑，不是纯黑） |
 | `--text-secondary` | `#585853` | 次级文字 |
-| `--text-muted` | `#8C8C86` | 弱化文字（标签、说明） |
-| `--text-faint` | `#A8A8A2` | 最弱文字 |
+| `--text-muted` | `#63635D` | 弱化文字（标签、说明）。**v1.5 由 #8C8C86 加深**：原值仅 3.4:1，不达 WCAG AA 4.5:1，现约 5.7:1 |
+| `--text-faint` | `#70706A` | 最弱文字。v1.5 由 #A8A8A2 加深（原 2.4:1 → 现约 4.7:1） |
+| `--text-placeholder` | `#A8A8A2` | v1.5 新增，**仅**用于输入占位符等纯装饰场景 |
 
 ### 强调色（全站唯一，低饱和蓝灰）
 
@@ -65,7 +66,7 @@
 | 设计说明页标题 `.doc__title` | 26px | 600 | |
 | 工具页主标题 `.page__title` | 25px | 600 | |
 | 次级数值 `.stat__value` | 21px | 600 | `tabular-nums` |
-| 输入框 | 16px | — | 注释：**16px 避免移动端聚焦缩放** |
+| 输入框（`.field__input` / `.input-affix__input` / `.ocr-review__input`） | 16px | — | 注释：**16px 避免移动端聚焦缩放**（v1.5 起 ocr-review 也从 14px 归一） |
 | 正文/按钮 | 14–15px | 500–600 | |
 | 标签/说明 | 12–13.5px | 400–600 | 标签用 `letter-spacing: 0.06–0.08em` 区分 |
 
@@ -98,12 +99,18 @@
 
 ---
 
-## 已知缺陷（2026-09-30 浏览器实测发现）
+## 已知缺陷（2026-09-30 浏览器实测发现）→ 已修复
 
 **`.range-inputs` 的 `display: flex` 覆盖了 `[hidden]` 的 UA 样式。**
 
 - 位置：`styles.css` 第 290 行 `.range-inputs { display: flex; }`
 - 后果：`#sh-range-wrap`（价格区间输入）加了 `hidden` 属性也**不会隐藏**。实测确认：选「一个价格」时，区间输入框（最低 – 最高）仍然显示，与单价格输入框同屏出现；移动端同样复现。
-- 旁证：样式表里 `.section`、`.field__error`、`.ocr__progress`、`.ocr-result`、`.feedback` 都单独写了 `[hidden] { display: none }` 补丁——说明作者遇到过同类问题，但漏掉了 `.range-inputs`。
-- 修法（一行）：`.range-inputs[hidden] { display: none; }`
-- 状态：**尚未修复，未发布**。
+- 状态：**已于 v1.4 修复**——reset 区新增全局规则 `[hidden] { display: none !important; }`，一次收口同类问题，不再逐类打补丁。修复后的实测截图见 `实测截图/修复后-*.png`。
+
+## v1.5 变更摘要（设计层）
+
+- **对比度**：`--text-muted` / `--text-faint` 加深至 AA 达标（上表）；placeholder 拆为独立 token
+- **触摸目标**：`.segmented__btn` 30px → ≈40px、`.btn--quiet` 33px → ≈43px（padding 9px 16px / 10px 14px）
+- **新增**：`.reveal-in` 结果区出现动画（.28s，reduced-motion 下自动失效）；`.ocr__progress.is-busy` 不确定进度条（纯色滑动块，无渐变）；`.ocr__thumb` 截图缩略图（44px，本地 object URL）；`favicon.svg`
+- **焦点**：全局 `:focus-visible` 统一焦点框；反馈弹层面板 `tabindex="-1"` 接收程序化焦点
+- **可达性**：`#f-sh` 补 `<label for>`；错误提示节点加 `role="status"`，输入框同步 `aria-invalid`
