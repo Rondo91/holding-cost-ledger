@@ -21,6 +21,12 @@ site/
 │       ├── format.js         数值格式化与分桶（纯函数）
 │       ├── validate.js       输入校验（纯函数）
 │       ├── views.js          结果区渲染（数据 → HTML）
+│       ├── category.js       设备品类与名称推断（纯函数）
+│       ├── benchmark-data.js 参考回收率数据（纯数据，附来源与时间）
+│       ├── benchmark.js      参考锚点查找与折算（纯函数）
+│       ├── curve.js          日均衰减曲线数学（纯函数）
+│       ├── history-store.js  本地账本存储（注入式 storage，纯逻辑）
+│       ├── views-history.js  账本 / 锚点 / 曲线渲染（数据 → HTML）
 │       ├── ocr.js            订单截图识别与降级
 │       ├── analytics.js      匿名埋点（云端 / 本地双模式）
 │       └── app.js            入口：状态机、事件绑定、即时计算
@@ -47,11 +53,15 @@ python -m http.server 8123 --bind 127.0.0.1
 ## 运行测试
 
 ```bash
-node --test tests/calc.test.js tests/format.test.js tests/validate.test.js tests/views.test.js tests/ocr.test.js
+node --test tests/calc.test.js tests/format.test.js tests/validate.test.js tests/views.test.js tests/ocr.test.js tests/category.test.js tests/benchmark.test.js tests/curve.test.js tests/history-store.test.js tests/views-history.test.js
 ```
 
-测试只覆盖纯逻辑层（计算、格式化、校验、渲染字符串、模型选型），不依赖浏览器，也不需要装任何东西。
+测试只覆盖纯逻辑层（计算、格式化、校验、渲染字符串、模型选型、品类推断、锚点分段、曲线数学、账本存储），
+不依赖浏览器，也不需要装任何东西。
 **DOM 交互层（事件绑定、状态流转）没有自动化测试**——改交互逻辑时请手动走一遍。
+
+> `history-store.js` 不 import `localStorage`，所有函数第一个参数收 `{getItem,setItem,removeItem}`；
+> 单测传内存实现，浏览器里由 `app.js` 传入薄适配层。
 
 ---
 
@@ -95,8 +105,12 @@ D = max(1, T − 购买日期 + 1)      自然日，含购买当天，所以当�
 | 截图不上传 | 只在浏览器内读成 data URL，直接交给模型，不经过任何存储 |
 | 不记录你填的数值 | 埋点只上报金额/天数/回收率所属的**区间**，不上报原文 |
 | 不要求注册 | 没有账号体系，会话标识由浏览器生成，关闭标签页即失效 |
+| 你填入的数字不上传 | 只有主动点「记入账本」才写一条；**写在浏览器 localStorage，无任何上传路径** |
+| 账本可带走、可销毁 | 支持导出 JSON 备份与一键清空（平台不提供匿名登录，因此不存在同步实现） |
 
 数据库层用 CHECK 约束白名单把"只能写这几个键"钉死，应用层写错也会被拒。
+
+**共用电脑请注意**：账本内容对本浏览器的任何使用者可见，这一条写在界面上，而不是用"安全"两个字糊过去。
 
 ---
 
@@ -132,14 +146,21 @@ CREATE TABLE calc_events (
     'residual_prompt_shown','residual_entered','residual_skipped','full_result_viewed',
     'formula_expanded','formula_collapsed','feedback_opened','feedback_answered',
     'feedback_dismissed','ocr_upload_started','ocr_result','ocr_field_confirmed',
-    'ocr_field_edited','ocr_fallback_manual','client_error'
+    'ocr_field_edited','ocr_fallback_manual','client_error',
+    -- v2.0：账本
+    'history_saved','history_viewed','history_recall','history_deleted',
+    'history_exported',
+    -- v2.0：参考锚点与衰减曲线
+    'benchmark_hint_shown','benchmark_hint_expanded','curve_expanded',
+    -- v2.0：OCR 按次测量（ocr_result 仍是总时长，两条时间线并存）
+    'ocr_attempt'
   )),
-  step  TEXT CHECK (step IN ('input','base','residual','full')),
+  step  TEXT CHECK (step IN ('input','base','residual','full','history')),
   props JSONB NOT NULL DEFAULT '{}'::jsonb
         CHECK (props - ARRAY['field','price_band','days_band','residual_type',
                              'recovery_band','status','reason','code','page',
                              'fields_found','fields_unsure','section',
-                             'model','duration_ms'] = '{}'::jsonb),
+                             'model','duration_ms','category','attempt'] = '{}'::jsonb),
   ts TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ON calc_events (ts);
@@ -214,11 +235,25 @@ __hcbEvents.clear()
 
 ---
 
+## v2.0 的账本与参考数据
+
+**账本**：`localStorage` 键 `hcb_history`，schema version 2，软上限 200 条（超限拒绝新增，绝不静默删）。
+数据损坏时原文转移到 `hcb_history_corrupt` 留档后重置；更高版本的数据只读不写，防止回滚损坏。
+数字一律**按今天的日期重算**，快照只用于「上次 ¥X/天 → 今天 ¥Y/天」的对比提示。
+
+**参考数据**：`assets/js/benchmark-data.js`，按「品类 × 持有年限段」给区间，每个品类单独标注来源与时间。
+查不到可靠来源的品类（耳机、其他）以及超出统计范围的年限段（3 年以上）一律返回"没有数据"，
+**绝不填一个看起来合理的数字**。
+
 ## 已知局限
 
-- 六项指标目前没有真实数据，页面上展示的是口径与目标值，不是达成情况。
+- 九项指标目前没有真实数据，页面上展示的是口径与目标值，不是达成情况。
 - 埋点在页面关闭时会丢失最后一批事件，真实指标应视为下界估计。
 - 二手价由用户手填，平台挂牌价普遍高于实际成交价，本身就是估算。
 - 访谈样本 12 人且集中在熟人圈，百分比只能当方向，不能当结论。
+- 参考回收率按发售价 / 回收商报价口径统计，与本工具「二手价 ÷ 实付」存在系统性偏差；
+  手机用中文来源、其余品类用海外回收商折旧表，两套口径未做跨源校准。
+- 品类按设备名称关键词推断，可能误判（只影响参考区间是否出现，不影响计算，可手动纠正）。
+- 账本数据在本地，因此看不到用户记了几台、记了什么，只能靠匿名事件计数。
 
-详见 `design.html` 第 04 节。
+详见 `design.html` 第 04 节与第 06 节。

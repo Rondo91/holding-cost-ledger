@@ -7,7 +7,7 @@
 <meta name="description" content="填入购买日期和实付金额，立刻看到日均购置成本；再补充当前二手价，得到扣除残值后的真实持有成本和回收率。不需要注册，截图不上传。">
 <meta name="theme-color" content="#FAFAF8">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="assets/css/styles.css?v=2.0.0">
 </head>
 <body>
 
@@ -39,7 +39,9 @@
   <!-- ================= 分区 A：输入 ================= -->
   <section class="section" id="sec-input">
     <h1 class="page__title">这台设备，你每天为它花了多少钱？</h1>
-    <p class="page__sub">填入购买日期和实付金额就能得到第一个结果。不需要注册，不保存你填的数字。</p>
+    <p class="page__sub">填入购买日期和实付金额就能得到第一个结果。填入的数字不上传；主动记入账本的记录只存在你的浏览器里。</p>
+
+    <div id="recall-banner"></div>
 
     <div class="ocr" id="ocr">
       <div class="ocr__head">
@@ -69,6 +71,12 @@
       </div>
 
       <div class="field">
+        <label class="field__label" for="f-category">设备品类<span class="field__req">选填</span></label>
+        <select class="field__select" id="f-category" aria-describedby="h-category"></select>
+        <p class="field__hint" id="h-category" hidden></p>
+      </div>
+
+      <div class="field">
         <label class="field__label" for="f-date">购买日期<span class="field__req">必填</span></label>
         <input class="field__input" id="f-date" name="purchaseDate" type="date" max="2099-12-31">
         <p class="field__error" id="e-date" role="status" hidden></p>
@@ -91,6 +99,13 @@
   <section class="section" id="sec-base" hidden>
     <h2 class="section__title">当前持有成本</h2>
     <div id="base-body"></div>
+
+    <div class="save-row" id="save-row" hidden>
+      <div class="btn-row" id="save-btns"></div>
+      <p class="save-row__note" id="save-note" role="status" hidden></p>
+    </div>
+
+    <div id="curve-body"></div>
 
     <div class="residual-call" id="residual-call">
       <div id="residual-body"></div>
@@ -134,6 +149,8 @@
         </div>
       </div>
     </div>
+
+    <div id="anchor-slot"></div>
   </section>
 
   <!-- ================= 分区 C：完整结果 ================= -->
@@ -145,6 +162,12 @@
       <span class="feedback-entry__title">这两个数字对你有用吗？留下两句反馈</span>
       <span class="feedback-entry__sub">两问，10 秒</span>
     </button>
+  </section>
+
+  <!-- ================= 分区 D：我的账本 ================= -->
+  <section class="section" id="sec-history" hidden>
+    <h2 class="section__title">我的账本</h2>
+    <div id="history-body"></div>
   </section>
 
   <!-- ================= 公式与口径（弱层级，默认收起） ================= -->
@@ -159,6 +182,9 @@
   <div class="footer__inner">
     <p><strong>数据说明</strong>：本站不要求注册，不收集姓名、地址、手机号、订单号。上传的订单截图只在你的浏览器内读取，
        直接交给模型识别，不会上传保存。统计只记录匿名的操作事件与金额区间，不记录你填写的具体数值。</p>
+    <p><strong>账本说明</strong>：你填入的数字不上传。只有你主动点「记入账本」，这条记录才会保存在这台浏览器的本地存储里
+       ——不上传、不联网、没有同步路径，可随时导出或一键清空。清空浏览器数据会一并删除；共用电脑时，
+       任何使用这台浏览器的人都能看到账本内容。</p>
     <p>全部结果均为估算，不构成交易或投资建议。计算口径与设计取舍见
        <a href="design.html">设计说明</a>。</p>
   </div>
@@ -198,7 +224,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
-<script type="module" src="assets/js/creator.js"></script>
-<script type="module" src="assets/js/app.js"></script>
+<script type="module" src="assets/js/creator.js?v=2.0.0"></script>
+<script type="module" src="assets/js/app.js?v=2.0.0"></script>
 </body>
 </html>

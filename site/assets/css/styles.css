@@ -1207,6 +1207,259 @@ td.num, th.num {
   border: 0;
 }
 
+/* --------------------------------------------------------------------------
+   v2.0：品类选择、记入账本、衰减曲线、参考锚点、本地账本
+   -------------------------------------------------------------------------- */
+
+/* 品类下拉：与输入框同高同宽，保持表单纵向节奏 */
+.field__select {
+  display: block;
+  width: 100%;
+  padding: 11px 13px;
+  font-family: inherit;
+  font-size: 16px;   /* 与输入一致，避免移动端聚焦缩放 */
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+                    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% + 1px), calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+.field__select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+/* 记入账本：低调次级动作，不抢结果区的视觉权重 */
+.save-row { margin-top: 18px; }
+.save-row__note {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.save-row__note[hidden] { display: none; }
+
+/* 衰减曲线：内联 SVG，无图表库。
+   结论句在 <summary> 里，展开只是看形状 */
+.details--curve { margin-top: 18px; }
+.details--curve .details__summary { font-size: 14px; }
+
+.curve__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 4px 0 12px;
+}
+.curve__grid line { stroke: var(--border); stroke-width: 1; }
+.curve__labels text {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.curve__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* 当前点右侧是「如果继续持有」，用虚线区分已发生与假设 */
+.curve__line--dashed { stroke-dasharray: 5 4; stroke-opacity: .75; }
+.curve__now { stroke: var(--border-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+.curve__dot { fill: var(--accent); }
+.curve__dot-label {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.curve__note { font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+
+/* 参考锚点：与公式块同层级的弱层级，默认收起 */
+.details--hint { margin-top: 14px; }
+.benchmark__caliber { color: var(--warn-text); }
+.benchmark__source { font-size: 12px; color: var(--text-faint); }
+
+/* 回看提示条 */
+.recall-banner {
+  border: 1px solid var(--accent-line);
+  background: var(--accent-tint);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.recall-banner p {
+  font-size: 13px;
+  color: var(--accent-dark);
+  line-height: 1.6;
+  flex: 1 1 240px;
+}
+
+/* 多设备排行 */
+.rank {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.rank__title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.rank__list { display: grid; gap: 8px; }
+.rank__item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14px;
+}
+.rank__no {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.rank__name {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank__daily {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.rank__daily .unit {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 3px;
+}
+.rank__note {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 10px;
+  line-height: 1.55;
+}
+
+/* 账本列表 */
+.history__list {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.history__row {
+  background: var(--surface);
+  padding: 13px 15px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  align-items: center;
+}
+.history__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.history__name {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.history__cat {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.history__nums {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+.history__daily {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.history__daily .unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 3px;
+}
+.history__meta,
+.history__trend {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.history__trend { color: var(--text-faint); }
+.history__ops {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+@media (min-width: 560px) {
+  .history__row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .history__ops { grid-column: auto; }
+}
+
+.history__privacy {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  line-height: 1.65;
+  margin-top: 14px;
+}
+.history__actions { margin-top: 14px; }
+.history__confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--warn-line);
+  background: var(--warn-bg);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--warn-text);
+}
+.history__confirm[hidden] { display: none; }
+
 /* 减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

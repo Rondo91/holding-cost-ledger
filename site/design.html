@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>设计说明与取舍记录 — 持有成本账本</title>
-<meta name="description" content="12 人访谈的三类需求、四组关键取舍、六项指标口径，以及这份设计目前还不知道的事。">
+<meta name="description" content="12 人访谈的三类需求、四组关键取舍、九项指标口径，以及这份设计目前还不知道的事。">
 <meta name="theme-color" content="#FAFAF8">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="assets/css/styles.css?v=2.0.0">
 </head>
 <body>
 
@@ -194,6 +194,17 @@
           <dt>代价</dt>
           <dd>残值补充率大概率达不到 40%。我接受这个数字不好看，但它是真实的。</dd>
         </div>
+        <div class="tradeoff__row">
+          <dt>v2.0 补充</dt>
+          <dd>
+            上线后我给这一步加了一样东西：<strong>行业参考区间锚点</strong>（按品类 × 持有年限段，标注来源与口径差异）。
+            它瞄准的正是这个取舍留下的漏洞——"不知道填多少"是用户随手编数的最大动因。
+            但锚点<strong>只展示、不代填</strong>：给行业区间，不给"你这台值多少"，更不替用户把数字写进输入框。
+            因为<strong>一条一致的原则必须贯彻到底</strong>：编造的价格比没有价格更糟，
+            那么"替用户生成一个看起来有依据的价格"同样更糟。
+            代价是它未必能把补充率拉到 40%；如果拉不动，那本身也是个可回答的问题——说明卡点不在信息，而在意愿。
+          </dd>
+        </div>
       </dl>
     </div>
 
@@ -268,6 +279,18 @@
             一个算钱的工具如果连自己的数据边界都说不清，用户凭什么把订单截图交给它。
           </dd>
         </div>
+        <div class="tradeoff__row">
+          <dt>v2.0 边界</dt>
+          <dd>
+            账本功能上线后，这条承诺需要精确化，而不是放宽：<strong>从「我们不保存你填的数字」变成
+            「你主动记入账本的记录只存在你的浏览器里」。</strong>
+            差别在于前者其实一直有个小瑕疵——本地埋点缓冲本来就在用 localStorage。
+            现在的范围是清楚的：只有你点了「记入账本」才会写一条，可随时导出或一键清空，
+            <strong>没有任何上传路径</strong>（平台也不提供匿名登录，所以不存在"顺手同步一下"的实现空间）。
+            共用电脑时任何人都能看到账本，这一点在界面上明说了，而不是用一句"安全"糊过去——
+            <strong>如实告知比假的安全感重要。</strong>
+          </dd>
+        </div>
       </dl>
     </div>
   </section>
@@ -276,8 +299,8 @@
   <section class="doc__section">
     <h2 class="doc__h2"><span class="doc__h2-num">03</span>指标设计</h2>
     <p class="doc__intro">
-      六个指标，每一个都对应一个具体的问题。注意"结果解释展开率"没有目标值——
-      它的作用是<strong>诊断</strong>而不是考核：如果默认解释已经够清楚，这个数就该低。
+      九个指标（v1.x 六项 + v2.0 新增三项），每一个都对应一个具体的问题。注意"结果解释展开率"
+      与 v2.0 新增的三项都没有目标值——它们的作用是<strong>诊断</strong>而不是考核：如果默认解释已经够清楚，这个数就该低。
     </p>
 
     <div class="metric-grid">
@@ -288,7 +311,11 @@
       </div>
       <div class="metric">
         <div class="metric__name">残值补充率</div>
-        <p class="metric__def">看到基础结果后，愿意继续填二手成交价的比例</p>
+        <p class="metric__def">
+          看到基础结果后，愿意继续填二手成交价的比例。
+          <strong>v2.0 起软引导内提供行业参考区间，该指标与 v1.x 的基线不可直接比较</strong>
+          ——口径没变，但影响用户决策的信息变多了。
+        </p>
         <div class="metric__foot"><span class="metric__target">目标 ≥ 40%</span><span class="metric__n">n = 0</span></div>
       </div>
       <div class="metric">
@@ -309,6 +336,21 @@
       <div class="metric">
         <div class="metric__name">结果解释展开率</div>
         <p class="metric__def">是否需要展开查看公式、口径和假设</p>
+        <div class="metric__foot"><span class="metric__target">仅观测，不设目标</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">账本记入率（v2.0 新增）</div>
+        <p class="metric__def">看到结果的人里，有多少愿意把它记进自己的账本</p>
+        <div class="metric__foot"><span class="metric__target">仅观测，不设目标</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">账本回看率（v2.0 新增）</div>
+        <p class="metric__def">记入之后又回来查看的比例——本地功能唯一的留存信号</p>
+        <div class="metric__foot"><span class="metric__target">仅观测，不设目标</span><span class="metric__n">n = 0</span></div>
+      </div>
+      <div class="metric">
+        <div class="metric__name">锚点展开率（v2.0 新增）</div>
+        <p class="metric__def">看到参考锚点的人里有多少点开看区间——检验锚点形态是否有效的诊断指标</p>
         <div class="metric__foot"><span class="metric__target">仅观测，不设目标</span><span class="metric__n">n = 0</span></div>
       </div>
     </div>
@@ -402,19 +444,156 @@
         彻底解决要么接受「必须失焦才算完成」的交互代价，要么给金额字段单独做一层输入校验。
         这是一个取舍，我选了成本低的那一边，但没有把它说成已经解决。
       </p>
+
+      <h3 class="doc__h3">v2.0：修掉的第三个测量问题——OCR 只记总时长</h3>
+      <p>
+        v1.3 给识别环节加了「用了哪个模型、花了多久」两个字段，当时的判断是对的：
+        没有这两个字段，只能靠人肉读屏幕才知道发生了什么。但它有一个洞——
+        <strong>记录的是整次识别的总时长，以及最终生效的那个模型。</strong>
+      </p>
+      <p>
+        于是出现了一个回答不了的问题：<strong>「换模型重试到底有没有变快？」</strong>
+        第一次实测的总耗时是 18.2 秒，没变快；可那次是<strong>第一个模型失败、换成第二个才成功</strong>。
+        失败的那次尝试在数据里完全不可见——它既没有单独的耗时，也没有自己的模型名。
+        更麻烦的是，两个模型的时间混在一个数字里，我甚至说不清 18.2 秒里各占多少。
+      </p>
+      <p>
+        改法：<strong>每次模型尝试单独计时单独上报</strong>（新增 <code>ocr_attempt</code> 事件，带尝试序号、模型、该次耗时与结果），
+        而原来的 <code>ocr_result</code> <strong>一个字都不改</strong>——它继续记总时长和最终模型。
+        两条时间线并存，服务端可以直接交叉校验（总时长 ≈ 各次之和 + 重试间隙），
+        <strong>v1.3 以来的历史数据一个字节都不用迁移，可比性不受影响。</strong>
+      </p>
+      <p>
+        顺带补上另一个口径漏洞：识别结果确认填入后，原本不触发「字段完成」事件，
+        导致<strong>走识别这条路的用户在漏斗数据里是空白的</strong>——好像他们从来没完成过输入。
+      </p>
     </div>
   </section>
 
-  <!-- ============================ 05 局限 ============================ -->
+  <!-- ==================== 05 v2.0 的新取舍 ==================== -->
   <section class="doc__section">
-    <h2 class="doc__h2"><span class="doc__h2-num">05</span>我还不知道的事</h2>
+    <h2 class="doc__h2"><span class="doc__h2-num">05</span>v2.0：从计算器变成账本，带来三个新取舍</h2>
+    <p class="doc__intro">
+      1.0 版本叫「账本」，但它每次打开都是一次性的——算完就忘，名不副实。
+      这一版补齐了记录能力，也因此多出三组必须回答的问题。
+    </p>
+
+    <div class="tradeoff">
+      <h3 class="tradeoff__title">⑤ 参考锚点给行业区间，不给「你的设备值多少」</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>给得越具体越有用——最好直接给出一个数字，用户点一下就用。</dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd>
+            只给<strong>品类 × 持有年限段</strong>的行业区间，附来源、数据时间与口径差异声明；
+            <strong>不提供一键填入</strong>，不自动联网搜价，不估价。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>理由</dt>
+          <dd>
+            行业保值率大多按<strong>发售价</strong>统计，且多来自回收商报价；本工具的回收率按<strong>实付金额</strong>算。
+            两个口径不一样，硬折算会系统性偏差——把它包装成一个精确数字，就是<strong>用伪精确换取转化率</strong>。
+            所以口径差异必须原样写在界面上，不允许省略。
+            同理，<strong>查不到可靠公开数据的品类就显示「暂无可靠参考」</strong>，
+            持有超过 3 年也如实说"公开数据只统计到 3 年"——不拿相邻段顶替。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>锚点的用处远不如「一键填入」直观，转化提升可能很小。而且区间很宽（手机一年 42%–78%），
+            因为 iPhone 与安卓的真实差距就是这样——<strong>给一个窄而假的区间更好看，但没用。</strong></dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="tradeoff">
+      <h3 class="tradeoff__title">⑥ 账本只存浏览器，不上云</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>换设备就没了。云同步才是"账本"该有的样子，也更容易讲成完整故事。</dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd>
+            只写浏览器本地存储，<strong>不上传、不联网、无同步路径</strong>；提供导出 JSON 做备份，一键清空做退出。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>理由</dt>
+          <dd>
+            平台侧没有匿名登录，存储服务只对登录用户开放——<strong>要做云同步就得先要求注册</strong>，
+            那会直接推翻取舍④。但更重要的理由是：<strong>本地优先本身就是这条隐私承诺的自然延伸。</strong>
+            账本里是"我买了什么、花了多少、持有多久"，比一次性计算敏感得多，
+            为一个作品集项目把这些数据搬到服务端，收益配不上代价。
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>换设备、清缓存就没了；共用电脑的人能看到。对策是如实告知 + 导出备份，
+            而不是加一个密码——<strong>假的安全感比没有安全感更糟。</strong></dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="tradeoff">
+      <h3 class="tradeoff__title">⑦ 衰减曲线只做摊分数学，不构成建议</h3>
+      <dl>
+        <div class="tradeoff__row">
+          <dt>冲突</dt>
+          <dd>「再持有 23 天，日均降到 ¥4 以内」读起来很像一句"再多等等"的建议，而这正是它容易被误读的地方。</dd>
+        </div>
+        <div class="tradeoff__row tradeoff__row--choice">
+          <dt>选择</dt>
+          <dd>
+            曲线只画 <strong>P ÷ D 随天数下降</strong> 这一件事，结论句直接写在标题行（不点开也能看到），
+            下方固定一句声明：<strong>摊分数学不等于继续持有更划算，本工具不判断该不该留。</strong>
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>理由</dt>
+          <dd>
+            这条曲线是纯数学——同样的输入一定得到同样的曲线，符合取舍③。
+            但"日均下降"很容易被读成"越用越划算"，进而变成换机建议，
+            那就越过了本页最后那块「设计的边界」。<strong>数学可以画，判断不给。</strong>
+          </dd>
+        </div>
+        <div class="tradeoff__row">
+          <dt>代价</dt>
+          <dd>用户可能觉得"你都画出来了为什么不告诉我该不该卖"。这是故意留的缺口。</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="doc__body">
+      <h3 class="doc__h3">为什么数字按今天重算，而不是按记录那天的快照</h3>
+      <p>
+        账本里的每一条都存了记录当天的快照，但<strong>列表与排行显示的是按今天的日期重算出来的数字</strong>。
+        因为各条记录的快照日期不同，按快照排行等于拿不同日期的数字互相比较，没有意义。
+        快照只用来做一句对比提示：<strong>「上次 ¥4.07/天 → 今天 ¥3.86/天」</strong>——
+        这句话本身就是价值：持有成本真的在下降。
+      </p>
+      <p>
+        代价是账本里的数字每次打开都会变。这是「按天摊分」这个口径的固有属性，不是 bug，
+        所以它在界面上被明说了，而不是被藏起来。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================ 06 局限 ============================ -->
+  <section class="doc__section">
+    <h2 class="doc__h2"><span class="doc__h2-num">06</span>我还不知道的事</h2>
     <p class="doc__intro">
       这一节看着像自曝其短。不放这节，前面所有漂亮的推理都不可信。
     </p>
 
     <div class="limit-list">
       <div class="limit">
-        <strong>六项指标里的数据全部来自我自己，不是真实用户。</strong>
+        <strong>九项指标里的数据全部来自我自己，不是真实用户。</strong>
         目前库里只有 7 次页面访问和 1 次完整流程，全是我上线后自测留下的。
         上面那一排的 n 按真实用户算仍然是 <strong>0</strong>。
         这一页展示的是<strong>"我打算怎么验证"，不是"我验证通过了"</strong>——
@@ -440,6 +619,20 @@
         <strong>访谈里的分类不互斥。</strong>
         A/B/C 三类是按回答倾向归纳的，编号 9 同时落在两类里。
         如果要严格统计，需要重新设计访谈提纲，把互斥作为前提。
+      </div>
+      <div class="limit">
+        <strong>参考回收率与个人实际回收率存在系统性偏差。</strong>
+        公开数据大多按发售价统计、且多来自回收商报价（低于个人成交价），
+        而本工具的回收率按实付金额算。手机用中文来源、其余品类用海外回收商折旧表，<strong>两套口径并不统一</strong>，
+        每个品类的来源与时间在界面上分别标注，但没有做跨口径校准——那需要的是我自己拿不到的原始数据。
+        品类按设备名称关键词推断，<strong>可能误判</strong>；误判只影响参考区间是否出现，
+        不影响任何计算，用户可以手动改品类。
+      </div>
+      <div class="limit">
+        <strong>账本是本地的，因此它的数据我看不到。</strong>
+        记入率、回看率只能靠匿名事件计数，看不出用户记了几台、记了什么；
+        本地存储还会被清缓存连带清掉。这是取舍⑥的直接后果：
+        <strong>换来了隐私边界，就同时放弃了这条数据。</strong>
       </div>
     </div>
 
@@ -470,13 +663,14 @@
 
 <footer class="footer">
   <div class="footer__inner">
-    <p>全部结果均为估算，不构成交易或投资建议。</p>
+    <p>全部结果均为估算，不构成交易或投资建议。参考回收率来自公开来源，按品类与持有年限分段，
+       与你的实际回收率存在口径差异，界面上已逐处标注。</p>
     <div class="footer__links">
       <a href="index.html">← 回到工具</a>
     </div>
   </div>
 </footer>
 
-<script type="module" src="assets/js/creator.js"></script>
+<script type="module" src="assets/js/creator.js?v=2.0.0"></script>
 </body>
 </html>

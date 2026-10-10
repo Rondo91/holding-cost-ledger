@@ -33,6 +33,13 @@ const ALLOWED_EVENTS = new Set([
   'formula_expanded', 'formula_collapsed', 'feedback_opened', 'feedback_answered',
   'feedback_dismissed', 'ocr_upload_started', 'ocr_result', 'ocr_field_confirmed',
   'ocr_field_edited', 'ocr_fallback_manual', 'client_error',
+  // v2.0：账本与参考锚点。历史功能发生在完整结果之后，是独立阶段而非漏斗一环
+  'history_saved', 'history_viewed', 'history_recall', 'history_deleted',
+  'history_exported',
+  'benchmark_hint_shown', 'benchmark_hint_expanded',
+  'curve_expanded',
+  // v2.0：OCR 按次测量——ocr_result 只记总时长与最终模型，回答不了「哪个模型快」
+  'ocr_attempt',
 ]);
 
 /** props 的键白名单，同样与数据表约束保持一致 */
@@ -41,6 +48,8 @@ const ALLOWED_PROP_KEYS = new Set([
   'status', 'reason', 'code', 'page', 'fields_found', 'fields_unsure', 'section',
   // AI 环节的可观测性：不记这两项就永远得靠人肉读屏幕才知道用了什么模型、花了多久
   'model', 'duration_ms',
+  // v2.0：品类（锚点/账本）与 OCR 尝试序号
+  'category', 'attempt',
 ]);
 
 /**
@@ -55,6 +64,8 @@ const MILESTONE_EVENTS = new Set([
   'base_result_viewed',
   'full_result_viewed',
   'feedback_answered',
+  // v2.0：记入账本是核心转化动作，页面一关就丢会低估账本记入率
+  'history_saved',
 ]);
 
 let sessionId = null;
@@ -124,12 +135,12 @@ function appendLocal(key, record) {
 /**
  * 记录一个事件。
  * @param {string} eventName 必须在白名单内
- * @param {{ step?: 'input'|'base'|'residual'|'full', props?: object }} [options]
+ * @param {{ step?: 'input'|'base'|'residual'|'full'|'history', props?: object }} [options]
  */
 export function track(eventName, options = {}) {
   if (!ALLOWED_EVENTS.has(eventName)) return;
 
-  const step = ['input', 'base', 'residual', 'full'].includes(options.step)
+  const step = ['input', 'base', 'residual', 'full', 'history'].includes(options.step)
     ? options.step
     : null;
 

@@ -16,8 +16,21 @@ import {
   baseSectionHTML, residualAreaHTML, fullSectionHTML, formulaHTML,
   ocrReviewHTML, escapeHtml,
 } from './views.js';
-import { track, initAnalytics, flush, submitFeedback } from './analytics.js';
-import { recognizeOrderScreenshot, resolveVisionModels, attemptsLeft } from './ocr.js';
+import {
+  benchmarkHintHTML, curveBlockHTML, historySectionHTML, recallBannerHTML,
+} from './views-history.js';
+import { benchmarkHint } from './benchmark.js';
+import { CATEGORY_OPTIONS, categoryLabel, inferCategory } from './category.js';
+import { curveWindow, curvePoints, curveSummary } from './curve.js';
+import {
+  MAX_RECORDS, loadHistory, saveToHistory, deleteFromHistory, clearHistory,
+  exportHistoryJSON,
+} from './history-store.js';
+// v2.0 改动过这两个模块。版本号不能省：只给入口 app.js 加 ?v=
+// 浏览器仍会拿缓存里的旧 analytics.js，而旧白名单不认 history_saved
+// ——新事件会被数据库静默拒收，线上完全看不出异常。
+import { track, initAnalytics, flush, submitFeedback } from './analytics.js?v=2.0.0';
+import { recognizeOrderScreenshot, resolveVisionModels, attemptsLeft } from './ocr.js?v=2.0.0';
 import { isCloudConfigured } from './config.js';
 
 /* ------------------------------------------------------------------ *
@@ -30,9 +43,19 @@ const el = {
   device: $('#f-device'),
   date: $('#f-date'),
   price: $('#f-price'),
+  category: $('#f-category'),
+  categoryHint: $('#h-category'),
   eDevice: $('#e-device'),
   eDate: $('#e-date'),
   ePrice: $('#e-price'),
+
+  secInput: $('#sec-input'),
+  recallBanner: $('#recall-banner'),
+  saveRow: $('#save-row'),
+  saveBtns: $('#save-btns'),
+  saveNote: $('#save-note'),
+  curveBody: $('#curve-body'),
+  anchorSlot: $('#anchor-slot'),
 
   secBase: $('#sec-base'),
   baseBody: $('#base-body'),
@@ -48,6 +71,9 @@ const el = {
 
   secFull: $('#sec-full'),
   fullBody: $('#full-body'),
+
+  secHistory: $('#sec-history'),
+  historyBody: $('#history-body'),
 
   formula: $('#formula-details'),
   formulaBody: $('#formula-body'),
@@ -73,6 +99,7 @@ const state = {
   deviceName: '',
   purchaseDate: '',
   priceRaw: '',
+  category: 'auto',
   shMode: 'point',
   shPointRaw: '',
   shMinRaw: '',
@@ -82,7 +109,45 @@ const state = {
   touched: { device: false, date: false, price: false, sh: false },
   ocr: { data: null, unsure: [], busy: false, available: 'checking' },
   feedback: { helpful: null, nextAction: null },
+  // 账本：只存本机，不上传。savedId 用于把「记入账本」按钮切成已记入态
+  savedId: null,
+  savedUpdated: false,
+  recallId: null,
 };
+
+/* ------------------------------------------------------------------ *
+ * 本地账本
+ * ------------------------------------------------------------------ */
+
+/**
+ * history-store 只认 {getItem,setItem,removeItem} 接口，这里包一层 localStorage。
+ * setItem 的异常（配额耗尽、隐私模式）不在这里吞掉——上层要把它翻译成用户能懂的提示。
+ */
+const historyStorage = {
+  getItem: (key) => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  },
+  setItem: (key, value) => localStorage.setItem(key, value),
+  removeItem: (key) => {
+    try { localStorage.removeItem(key); } catch { /* 忽略 */ }
+  },
+};
+
+/** 今天的本地日期 YYYY-MM-DD（快照里记下计算日，供「上次 vs 今天」对比） */
+function todayISO() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/**
+ * 生效品类：手动选择优先，否则按设备名称推断。
+ * 推断错了只影响参考锚点展示，不影响任何计算；用户可以随时手动改。
+ */
+function effectiveCategory() {
+  if (state.category && state.category !== 'auto') return state.category;
+  return inferCategory(state.deviceName);
+}
 
 /** 只在首次发生时才上报的节点 */
 const firedOnce = new Set();
@@ -211,8 +276,12 @@ function render() {
 
   // 分区 B
   el.secBase.hidden = !hasBase;
+  el.saveRow.hidden = !hasBase;
   if (hasBase) {
     el.baseBody.innerHTML = baseSectionHTML(result);
+    renderCurve(result);
+    renderAnchor(result);
+    updateSaveRow();
     el.residualBody.innerHTML = residualAreaHTML(state.residualChoice, {
       formOpen: state.residualFormOpen,
       residual: result.hasResidual ? result.residual : null,
@@ -221,6 +290,9 @@ function render() {
     el.residualForm.hidden = !state.residualFormOpen;
     el.shPointWrap.hidden = state.shMode !== 'point';
     el.shRangeWrap.hidden = state.shMode !== 'range';
+  } else {
+    el.curveBody.innerHTML = '';
+    el.anchorSlot.innerHTML = '';
   }
 
   // 分区 C
@@ -244,7 +316,333 @@ function render() {
     btn.setAttribute('aria-pressed', String(btn.dataset.mode === state.shMode));
   });
 
+  // 品类提示：只在自动识别成功时说明依据；手动选择后以用户判断为准，不再覆盖
+  const inferred = state.category === 'auto' ? inferCategory(state.deviceName) : null;
+  if (el.categoryHint) {
+    if (inferred) {
+      el.categoryHint.textContent =
+        `按名称识别为：${categoryLabel(inferred)}。识别错了可以手动改——品类只影响参考区间，不影响计算。`;
+      el.categoryHint.hidden = false;
+    } else {
+      el.categoryHint.hidden = true;
+      el.categoryHint.textContent = '';
+    }
+  }
+
   animateNewlyShown();
+}
+
+/* ------------------------------------------------------------------ *
+ * 衰减曲线与参考锚点
+ * ------------------------------------------------------------------ */
+
+/**
+ * 曲线只依赖 P 与 D，有基础结果就能画。
+ * 用签名比对避免每次输入都重绘——重绘会把用户已经展开的 <details> 合上，
+ * 那种「点开了又被关掉」比没有展开更烦人。
+ */
+function renderCurve(result) {
+  const sig = `${result.price}|${result.days}`;
+  if (el.curveBody.dataset.sig === sig) return;
+  el.curveBody.dataset.sig = sig;
+
+  const summary = curveSummary({ price: result.price, days: result.days });
+  if (!summary) { el.curveBody.innerHTML = ''; return; }
+
+  const win = curveWindow(result.days);
+  const points = curvePoints({ price: result.price, fromDay: win.fromDay, toDay: win.toDay });
+  el.curveBody.innerHTML = curveBlockHTML(summary, {
+    points,
+    currentDay: result.days,
+    currentDaily: summary.currentDaily,
+  });
+
+  const details = el.curveBody.querySelector('#curve-details');
+  if (details) {
+    details.addEventListener('toggle', () => {
+      if (!details.open) return;
+      trackOnce('curve_expanded', 'curve_expanded', {
+        step: 'base',
+        props: { section: 'curve' },
+      });
+    });
+  }
+}
+
+/**
+ * 参考锚点：品类 × 持有年限段的行业区间，纯展示、不代填。
+ * 品类未知时整块不渲染——「没识别出」和「这个品类没有可靠数据」是两件事，都要如实说。
+ */
+function renderAnchor(result) {
+  const category = effectiveCategory();
+  const sig = `${category}|${result.price}|${result.days}`;
+  if (el.anchorSlot.dataset.sig === sig) return;
+  el.anchorSlot.dataset.sig = sig;
+
+  const hint = benchmarkHint({ category, daysHeld: result.days, price: result.price });
+  el.anchorSlot.innerHTML = benchmarkHintHTML(hint);
+  if (!hint) return;
+
+  trackOnce('benchmark_hint_shown', 'benchmark_hint_shown', {
+    step: 'residual',
+    props: { category: category || 'unknown' },
+  });
+
+  const details = el.anchorSlot.querySelector('[data-benchmark]');
+  if (!details || details.dataset.bound === '1') return;
+  details.dataset.bound = '1';
+  details.addEventListener('toggle', () => {
+    if (!details.open) return;
+    trackOnce(`benchmark_hint_expanded:${category}`, 'benchmark_hint_expanded', {
+      step: 'residual',
+      props: { category: category || 'unknown' },
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 本地账本
+ * ------------------------------------------------------------------ */
+
+function loadHistoryState() {
+  try {
+    return loadHistory(historyStorage);
+  } catch {
+    return { records: [], corrupt: false, readonly: false };
+  }
+}
+
+function renderHistory() {
+  const h = loadHistoryState();
+  el.secHistory.hidden = h.records.length === 0 && !h.corrupt && !h.readonly;
+  el.historyBody.innerHTML = historySectionHTML({
+    records: h.records,
+    calcDate: new Date(),
+    corrupt: h.corrupt,
+    readonly: h.readonly,
+    full: h.records.length >= MAX_RECORDS,
+  });
+  if (h.records.length > 0) {
+    trackOnce('history_viewed', 'history_viewed', { step: 'history' });
+  }
+}
+
+/** 账本区自己藏起来之后（例如清空），临时顶一条提示出来 */
+function toastInHistory(text) {
+  el.secHistory.hidden = false;
+  el.historyBody.innerHTML = `<div class="notice" role="status">${escapeHtml(text)}</div>`;
+  setTimeout(() => renderHistory(), 2500);
+}
+
+function showSaveNote(text) {
+  if (!el.saveNote) return;
+  if (!text) {
+    el.saveNote.hidden = true;
+    el.saveNote.textContent = '';
+    return;
+  }
+  el.saveNote.textContent = text;
+  el.saveNote.hidden = false;
+}
+
+/** 保存按钮区：记入后仍可再点以更新（补填二手价后需要更新同一条记录） */
+function updateSaveRow() {
+  if (!el.saveBtns) return;
+  const saved = Boolean(state.savedId);
+  el.saveBtns.innerHTML = `
+    <button type="button" class="btn btn--ghost" data-action="history-save">
+      ${saved ? '已记入 ✓' : '记入账本'}
+    </button>
+    ${saved ? '<button type="button" class="btn btn--quiet" data-action="history-goto">查看账本</button>' : ''}`;
+}
+
+const SAVE_FAILURE_TEXT = {
+  full: `账本已满（${MAX_RECORDS} 条）。请先导出备份，再手动清理旧记录——本站绝不自动删除你的账本。`,
+  quota: '浏览器存储空间不足，这条没有记上。可以先导出备份再清理。',
+  readonly: '账本由更新版本创建，本页只展示、不修改。',
+  invalid_input: '还没有可以记入的内容：至少要有购买日期和实付金额。',
+  storage: '这次没能读到本地账本，请刷新页面重试。',
+};
+
+/**
+ * 记入账本。手动点击才存——自动保存会把「随便试算一下」也写进账本，
+ * 也会把隐私承诺从「你主动存的」放宽成「算过的都在浏览器里」。
+ */
+function saveCurrent() {
+  const { result } = derive();
+  if (!result) {
+    showSaveNote(SAVE_FAILURE_TEXT.invalid_input);
+    return;
+  }
+
+  const category = effectiveCategory() || 'other';
+  const out = saveToHistory(historyStorage, {
+    input: {
+      deviceName: state.deviceName,
+      purchaseDate: state.purchaseDate,
+      price: result.price,
+      category,
+    },
+    residual: result.hasResidual ? result.residual : null,
+    snapshot: {
+      calcDate: todayISO(),
+      days: result.days,
+      dailyAmortized: result.dailyAmortized,
+      hasResidual: result.hasResidual,
+      netSpend: result.netSpend ?? null,
+      dailyNet: result.dailyNet ?? null,
+      recovery: result.recovery ?? null,
+    },
+  });
+
+  if (!out.ok) {
+    showSaveNote(SAVE_FAILURE_TEXT[out.reason] || '记录失败，请稍后再试。');
+    return;
+  }
+
+  state.savedId = out.id;
+  state.savedUpdated = out.updated;
+  track('history_saved', {
+    step: 'history',
+    props: {
+      category,
+      residual_type: result.hasResidual ? (result.isRange ? 'range' : 'point') : 'none',
+    },
+  });
+  showSaveNote(out.updated ? '已更新这条记录。' : '已记入账本，记录只存在这台浏览器里。');
+  renderHistory();
+  updateSaveRow();
+}
+
+function scrollToId(node) {
+  if (!node) return;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  node.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+}
+
+/** 回看 = 回填表单后按今天的日期重算，结果由提示条说明「数字会变」 */
+function recallRecord(id) {
+  const record = loadHistoryState().records.find((r) => r.id === id);
+  if (!record) return;
+
+  state.deviceName = record.input.deviceName;
+  state.purchaseDate = record.input.purchaseDate;
+  state.priceRaw = String(record.input.price);
+  state.category = record.input.category === 'other' ? 'auto' : record.input.category;
+  state.residualChoice = 'pending';
+  state.residualFormOpen = false;
+
+  if (record.residual === null) {
+    state.shMode = 'point';
+    state.shPointRaw = '';
+    state.shMinRaw = '';
+    state.shMaxRaw = '';
+  } else if (Array.isArray(record.residual)) {
+    state.shMode = 'range';
+    state.shMinRaw = String(record.residual[0]);
+    state.shMaxRaw = String(record.residual[1]);
+  } else {
+    state.shMode = 'point';
+    state.shPointRaw = String(record.residual);
+  }
+
+  el.device.value = state.deviceName;
+  el.date.value = state.purchaseDate;
+  el.price.value = state.priceRaw;
+  if (el.category) el.category.value = state.category;
+  el.sh.value = state.shPointRaw;
+  el.shMin.value = state.shMinRaw;
+  el.shMax.value = state.shMaxRaw;
+
+  state.recallId = id;
+  state.savedId = id;
+  state.savedUpdated = true;
+  el.recallBanner.innerHTML = recallBannerHTML(record);
+
+  track('history_recall', { step: 'history', props: { category: record.input.category } });
+  requestUpdate({ settleNow: true });
+  scrollToId(el.secInput);
+}
+
+function resetForm() {
+  state.deviceName = '';
+  state.purchaseDate = '';
+  state.priceRaw = '';
+  state.category = 'auto';
+  state.shMode = 'point';
+  state.shPointRaw = '';
+  state.shMinRaw = '';
+  state.shMaxRaw = '';
+  state.residualChoice = 'pending';
+  state.residualFormOpen = false;
+  state.touched = { device: false, date: false, price: false, sh: false };
+  state.savedId = null;
+  state.savedUpdated = false;
+  state.recallId = null;
+
+  el.device.value = '';
+  el.date.value = '';
+  el.price.value = '';
+  if (el.category) el.category.value = 'auto';
+  el.sh.value = '';
+  el.shMin.value = '';
+  el.shMax.value = '';
+  el.recallBanner.innerHTML = '';
+  el.curveBody.dataset.sig = '';
+  el.anchorSlot.dataset.sig = '';
+  resultsRevealed = false;
+  showSaveNote('');
+}
+
+function exitRecall() {
+  resetForm();
+  requestUpdate();
+}
+
+/** 单条删除：按钮原地变「确认删除？」两步确认，零弹窗，3 秒后自动还原 */
+const pendingDelete = new Map();
+function requestDelete(btn, id) {
+  if (pendingDelete.has(id)) {
+    clearTimeout(pendingDelete.get(id));
+    pendingDelete.delete(id);
+    const out = deleteFromHistory(historyStorage, id);
+    if (!out.ok) return;
+    track('history_deleted', { step: 'history', props: { reason: 'single' } });
+    if (state.recallId === id) exitRecall();
+    if (state.savedId === id) { state.savedId = null; state.savedUpdated = false; }
+    renderHistory();
+    updateSaveRow();
+    return;
+  }
+  pendingDelete.set(id, setTimeout(() => {
+    pendingDelete.delete(id);
+    renderHistory();
+  }, 3000));
+  btn.textContent = '确认删除？';
+}
+
+function clearAllHistory() {
+  const out = clearHistory(historyStorage);
+  if (!out.ok) return;
+  track('history_deleted', { step: 'history', props: { reason: 'clear_all' } });
+  if (state.recallId) exitRecall();
+  state.savedId = null;
+  state.savedUpdated = false;
+  updateSaveRow();
+  toastInHistory(`账本已清空，共移除 ${out.removed} 条记录。`);
+}
+
+function exportHistory() {
+  const blob = new Blob([exportHistoryJSON(historyStorage)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `持有成本账本备份-${todayISO()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  track('history_exported', { step: 'history' });
 }
 
 /**
@@ -447,6 +845,55 @@ function bindActions() {
       applyOcrResult();
       return;
     }
+
+    /* ---- 账本 ---- */
+
+    if (action === 'history-save') {
+      saveCurrent();
+      return;
+    }
+
+    if (action === 'history-goto') {
+      scrollToId(el.secHistory);
+      return;
+    }
+
+    if (action === 'history-recall') {
+      recallRecord(btn.dataset.id);
+      return;
+    }
+
+    if (action === 'history-delete') {
+      requestDelete(btn, btn.dataset.id);
+      return;
+    }
+
+    if (action === 'history-clear') {
+      const bar = el.historyBody.querySelector('[data-role="history-clear-confirm"]');
+      if (bar) bar.hidden = false;
+      return;
+    }
+
+    if (action === 'history-clear-cancel') {
+      const bar = el.historyBody.querySelector('[data-role="history-clear-confirm"]');
+      if (bar) bar.hidden = true;
+      return;
+    }
+
+    if (action === 'history-clear-confirm') {
+      clearAllHistory();
+      return;
+    }
+
+    if (action === 'history-export') {
+      exportHistory();
+      return;
+    }
+
+    if (action === 'history-exit-recall') {
+      exitRecall();
+      return;
+    }
   });
 
   // 选项按钮
@@ -471,6 +918,26 @@ function bindActions() {
 function setOcrNote(text) {
   el.ocrProgress.hidden = false;
   el.ocrProgress.textContent = text;
+}
+
+/**
+ * 每次模型尝试单独上报。
+ * ocr_result 的 duration_ms 是整次识别的总时长、model 只记最终生效者——
+ * 失败的那次尝试在汇总里是隐形的，所以「哪个模型快」这个问题一直没数据回答。
+ * ocr_result 保持原样，两条时间线并存，历史数据不受影响。
+ */
+function trackOcrAttempts(out) {
+  (out.attempts || []).forEach((a) => {
+    track('ocr_attempt', {
+      step: 'input',
+      props: {
+        attempt: String(a.attempt),
+        model: a.modelName,
+        duration_ms: a.durationMs,
+        status: a.status,
+      },
+    });
+  });
 }
 
 async function refreshOcrAvailability() {
@@ -535,6 +1002,7 @@ el.ocrFile?.addEventListener('change', async () => {
 
   if (!out.ok) {
     setOcrNote(out.message || '识别失败，请手动填写。');
+    trackOcrAttempts(out);
     track('ocr_result', {
       props: { status: out.status, model: out.modelName, duration_ms: out.durationMs },
     });
@@ -550,6 +1018,7 @@ el.ocrFile?.addEventListener('change', async () => {
   state.ocr.unsure = out.unsure || [];
 
   const found = Object.values(out.data).filter((v) => v !== null && v !== undefined).length;
+  trackOcrAttempts(out);
   track('ocr_result', {
     props: {
       status: 'ok',
@@ -580,6 +1049,18 @@ document.addEventListener('click', (e) => {
   setOcrNote('已切换为手动填写。');
   track('ocr_fallback_manual', { props: { reason: 'user_choice' } });
 });
+
+function initCategorySelect() {
+  if (!el.category) return;
+  el.category.innerHTML = CATEGORY_OPTIONS
+    .map((o) => `<option value="${o.value}">${o.label}</option>`)
+    .join('');
+  el.category.value = state.category;
+  el.category.addEventListener('change', () => {
+    state.category = el.category.value;
+    requestUpdate({ settleNow: true });
+  });
+}
 
 /** 识别值与用户确认值是否等价（'4,999' 与 4999 视为一致） */
 function sameValue(a, b) {
@@ -627,6 +1108,21 @@ function applyOcrResult() {
 
   confirmed.forEach((f) => track('ocr_field_confirmed', { props: { field: f } }));
   edited.forEach((f) => track('ocr_field_edited', { props: { field: f } }));
+
+  // 识别填入也算「字段完成」：原本只有手输失焦才记，导致识别这条路径在漏斗数据里是空白
+  if (state.purchaseDate) {
+    trackOnce('field_completed:purchaseDate', 'field_completed', {
+      step: 'input',
+      props: { field: 'purchaseDate' },
+    });
+  }
+  const filledPrice = parseAmount(state.priceRaw);
+  if (Number.isFinite(filledPrice)) {
+    trackOnce('field_completed:priceRaw', 'field_completed', {
+      step: 'input',
+      props: { field: 'priceRaw', price_band: priceBand(filledPrice) },
+    });
+  }
 
   el.ocrResult.hidden = true;
   el.ocrResult.innerHTML = '';
@@ -738,8 +1234,10 @@ function init() {
   bindField(el.price, 'priceRaw', 'price', 'amount');
   bindResidualInputs();
   bindActions();
+  initCategorySelect();
 
   render();
+  renderHistory();
   void refreshOcrAvailability();
 
   // 键盘可达性：结果出现后不抢焦点，但让屏幕阅读器知道状态变了

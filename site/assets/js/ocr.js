@@ -283,6 +283,11 @@ export async function recognizeOrderScreenshot(file, options = {}) {
   const callStart = performance.now();
   const elapsed = () => Math.round(performance.now() - callStart);
 
+  // v2.0：总时长只能回答「这次识别慢不慢」，回答不了「哪个模型快」——
+  // 失败的那次尝试在汇总里是隐形的（v1.3 的 duration_ms 就是这么漏掉的）。
+  // 所以每次模型尝试单独计时：attempts 逐条上报为 ocr_attempt，
+  // 外层的 durationMs 仍是总时长，与 v1.3 以来的历史数据保持可比。
+  const attempts = [];
   const candidates = models.slice(0, MAX_MODEL_ATTEMPTS);
   let lastFailure = { ok: false, status: 'call_failed', message: '识别没成功，请手动填写' };
 
@@ -290,9 +295,19 @@ export async function recognizeOrderScreenshot(file, options = {}) {
     const name = model.name ?? model.id;
     report(`识别中（${name}）`);
 
+    const attemptStart = performance.now();
     const outcome = await callModel(cloud, model, dataUrl);
-    lastFailure = { ...outcome, modelName: name, durationMs: elapsed() };
+    const attemptMs = Math.round(performance.now() - attemptStart);
 
+    attempts.push({
+      attempt: attempts.length + 1,
+      modelName: name,
+      status: outcome.status,
+      durationMs: attemptMs,
+      ok: outcome.ok === true,
+    });
+
+    lastFailure = { ...outcome, modelName: name, durationMs: elapsed(), attempts };
     if (outcome.ok) return lastFailure;
     // 内容被拦截、参数错误这类问题换模型也没用，直接收手
     if (!RETRYABLE_STATUS.has(outcome.status)) return lastFailure;

@@ -97,6 +97,14 @@
 `ocr / ocr-result / ocr__progress`（截图识别区）· `feedback`（弹层，`role="dialog"`）·
 `doc`（设计说明页版式）
 
+**v2.0 新增**：`field__select`（品类下拉，与输入框同高同宽，自绘箭头不用外部图标）·
+`save-row`（记入账本，ghost 次级动作，不抢结果区权重）·
+`curve__svg` 系列（内联 SVG：网格 / 标签 / 实线已发生 + 虚线假设 / 当前点竖线与圆点）·
+`details--hint`（参考锚点，与公式块同层级）·
+`rank`（多设备日均排行）· `history__row / history__list`（账本列表）·
+`history__confirm`（清空的行内确认条，warn 三件套）·
+`recall-banner`（回看提示条，accent 三件套 + `role="status"`）
+
 ---
 
 ## 已知缺陷（2026-09-30 浏览器实测发现）→ 已修复
@@ -114,3 +122,16 @@
 - **新增**：`.reveal-in` 结果区出现动画（.28s，reduced-motion 下自动失效）；`.ocr__progress.is-busy` 不确定进度条（纯色滑动块，无渐变）；`.ocr__thumb` 截图缩略图（44px，本地 object URL）；`favicon.svg`
 - **焦点**：全局 `:focus-visible` 统一焦点框；反馈弹层面板 `tabindex="-1"` 接收程序化焦点
 - **可达性**：`#f-sh` 补 `<label for>`；错误提示节点加 `role="status"`，输入框同步 `aria-invalid`
+
+## v2.0 变更摘要（设计层）
+
+- **层级原则**：曲线与锚点都用 `<details>`，与公式块同级——它们是**解释与旁证**，不是结果；
+  曲线的**结论句写在 `<summary>` 上**，点开只是看形状
+- **不引入图表库**：衰减曲线是内联 SVG + polyline，零依赖（零构建约束）
+- **新增组件一律沿用既有 token**：排行 / 列表 / 确认条 / 提示条都由
+  `accent`、`warn`、`border`、`surface-sunken` 四套既有色拼出，没有新增颜色
+- **可达性**：品类下拉是真 `<label for>` + 16px（防 iOS 聚焦缩放）；
+  曲线 SVG 带 `role="img"` + `aria-label` 概括；回看提示条 `role="status"`
+- **减少动效**：新组件没有新增任何动画，全局 reduced-motion 规则自动覆盖
+- **发布工程**：`styles.css` 与 JS 入口带 `?v=2.0.0`（改动模块的 import 同步带），
+  避免老访客拿到"新 HTML + 旧 JS"
