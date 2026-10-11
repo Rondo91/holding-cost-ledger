@@ -100,7 +100,7 @@ const CURVE = (() => {
   };
 })();
 
-test('curveBlockHTML：常显展示（v2.2 起），结论句与 SVG 直接可见', () => {
+test('curveBlockHTML：常显展示（v2.1 起），结论句与 SVG 直接可见', () => {
   const html = curveBlockHTML(CURVE.summary, CURVE.svgData);
   assert.ok(html.includes('curve-block'));
   assert.ok(!html.includes('<details'));   // 不再折叠：曲线提到明面
@@ -119,7 +119,7 @@ test('curveBlockHTML：SVG 无障碍属性与边界声明', () => {
 
 test('curveBlockHTML：当前点左侧实线（带面积）右侧虚线', () => {
   const html = curveBlockHTML(CURVE.summary, CURVE.svgData);
-  assert.ok(html.includes('curve__area'));   // v2.2：实线区面积填充
+  assert.ok(html.includes('curve__area'));   // v2.1：实线区面积填充
   assert.ok(html.includes('curve__line'));
   assert.ok(html.includes('curve__line--dashed'));
   assert.ok(html.includes('curve__dot'));
@@ -193,7 +193,7 @@ test('historySectionHTML：≥2 台才渲染排行卡，且注明口径', () => 
   });
   assert.ok(two.includes('日均最贵'));
   assert.ok(two.includes('仅对比日均购置成本'));
-  assert.ok(two.includes('rank__bar'));   // v2.2：相对日均的对比条
+  assert.ok(two.includes('rank__bar'));   // v2.1：相对日均的对比条
 });
 
 test('historySectionHTML：隐私说明如实——本机存储、会丢、共用电脑可见', () => {

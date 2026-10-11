@@ -67,7 +67,7 @@ export function benchmarkHintHTML(hint) {
  * 日均成本衰减曲线
  * ------------------------------------------------------------------ */
 
-/** 结论句直接展示（v2.2 起常显在块头）：不让用户点开才拿到答案 */
+/** 结论句直接展示（v2.1 起常显在块头）：不让用户点开才拿到答案 */
 function curveSummaryText(summary) {
   const parts = [];
   if (summary.halfAhead) {
@@ -107,7 +107,7 @@ function curveSVG({ points, currentDay, currentDaily }) {
   const gridBase = padT + plotH;
   const label = (v) => formatCurrency(Math.round(v), 0);
 
-  // 实线段的面积填充（v2.2 图形升级）：只覆盖「已经走过」的部分；
+  // 实线段的面积填充（v2.1 图形升级）：只覆盖「已经走过」的部分；
   // 虚线（如果继续持有）保持轻量，不抢「已发生 vs 假设」的既有区分
   const areaPoints = solid.length > 1
     ? `${x(solid[0].day).toFixed(1)},${gridBase} ${toPoly(solid)} ${x(solid[solid.length - 1].day).toFixed(1)},${gridBase}`
@@ -141,7 +141,7 @@ function curveSVG({ points, currentDay, currentDaily }) {
 }
 
 /**
- * 分区 B 的衰减曲线块。v2.2 起常显（此前折叠在 <details> 里）——
+ * 分区 B 的衰减曲线块。v2.1 起常显（此前折叠在 <details> 里）——
  * 它是本站唯一的真实图形资产，藏起来等于没有；数据含义一行未改。
  * @param {object|null} summary curveSummary() 的返回值
  * @param {{ points: object[], currentDay: number, currentDaily: number }} svgData

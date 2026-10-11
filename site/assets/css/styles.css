@@ -261,7 +261,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 
 /* --------------------------------------------------------------------------
-   首屏双栏（v2.2）：左深色陈述卡 / 右表单列
+   首屏双栏（v2.1）：左深色陈述卡 / 右表单列
    深色元素只用在首屏这一处 hero 与页脚——与纸色主体形成「深浅交替」，
    不是整站变黑。卡内的竖纹是账本格线的暗示（纯装饰，7% 透明）。
    -------------------------------------------------------------------------- */
@@ -393,7 +393,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 .form { display: block; }
 
-/* 表单卡（v2.2）：输入区收进一张白卡，与左侧深色陈述卡成对 */
+/* 表单卡（v2.1）：输入区收进一张白卡，与左侧深色陈述卡成对 */
 .form-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -630,7 +630,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
    结果区
    -------------------------------------------------------------------------- */
 
-/* 读数面板（v2.2）：数字、刻度、曲线同装在一张白卡里——
+/* 读数面板（v2.1）：数字、刻度、曲线同装在一张白卡里——
    「当前持有成本」成为一个完整的读数，而不是散落在纸面上的几段 */
 .reading-panel {
   background: var(--surface);
@@ -1449,7 +1449,7 @@ td.num, th.num {
 }
 .save-row__note[hidden] { display: none; }
 
-/* 衰减曲线：内联 SVG，无图表库。v2.2 起常显（从折叠提到明面）——
+/* 衰减曲线：内联 SVG，无图表库。v2.1 起常显（从折叠提到明面）——
    它是本站唯一的真实图形资产，与读数面板形成「数字 + 形状」的组合 */
 .curve-block {
   margin-top: 24px;
@@ -1477,7 +1477,7 @@ td.num, th.num {
   margin: 4px auto 12px;
 }
 .curve__grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 5; }
-/* 实线段的面积填充（v2.2）：把「已经走过」的部分画实 */
+/* 实线段的面积填充（v2.1）：把「已经走过」的部分画实 */
 .curve__area { fill: var(--accent); fill-opacity: 0.1; }
 .curve__labels text {
   fill: var(--text-muted);
@@ -1553,7 +1553,7 @@ td.num, th.num {
   gap: 10px;
   font-size: 14px;
 }
-/* 对比条（v2.2）：把「谁更贵」的相对关系画出来；宽度由 JS 按日均占比写入 */
+/* 对比条（v2.1）：把「谁更贵」的相对关系画出来；宽度由 JS 按日均占比写入 */
 .rank__bar {
   height: 6px;
   border-radius: 3px;
@@ -1676,7 +1676,7 @@ td.num, th.num {
 @media (min-width: 560px) {
   .history__row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .history__ops { grid-column: auto; }
-  /* 账页式数字列（v2.2）：桌面端日均数字右对齐成一列——账本的口径感 */
+  /* 账页式数字列（v2.1）：桌面端日均数字右对齐成一列——账本的口径感 */
   .history__nums { justify-items: end; text-align: right; }
 }
 
