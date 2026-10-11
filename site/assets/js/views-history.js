@@ -67,7 +67,7 @@ export function benchmarkHintHTML(hint) {
  * 日均成本衰减曲线
  * ------------------------------------------------------------------ */
 
-/** 结论句直接嵌进 <summary>：不让用户点开才拿到答案，点开只是看形状 */
+/** 结论句直接展示（v2.2 起常显在块头）：不让用户点开才拿到答案 */
 function curveSummaryText(summary) {
   const parts = [];
   if (summary.halfAhead) {
@@ -107,6 +107,12 @@ function curveSVG({ points, currentDay, currentDaily }) {
   const gridBase = padT + plotH;
   const label = (v) => formatCurrency(Math.round(v), 0);
 
+  // 实线段的面积填充（v2.2 图形升级）：只覆盖「已经走过」的部分；
+  // 虚线（如果继续持有）保持轻量，不抢「已发生 vs 假设」的既有区分
+  const areaPoints = solid.length > 1
+    ? `${x(solid[0].day).toFixed(1)},${gridBase} ${toPoly(solid)} ${x(solid[solid.length - 1].day).toFixed(1)},${gridBase}`
+    : '';
+
   const dotX = x(currentDay).toFixed(1);
   const dotY = y(currentDaily).toFixed(1);
 
@@ -125,6 +131,7 @@ function curveSVG({ points, currentDay, currentDaily }) {
         <text x="${padL}" y="${H - 12}" text-anchor="middle">${formatNumber(fromDay, 0)} 天</text>
         <text x="${W - padR}" y="${H - 12}" text-anchor="end">${formatNumber(toDay, 0)} 天</text>
       </g>
+      ${areaPoints ? `<polygon class="curve__area" points="${areaPoints}"></polygon>` : ''}
       ${solid.length > 1 ? `<polyline class="curve__line" points="${toPoly(solid)}"></polyline>` : ''}
       ${dashed.length > 1 ? `<polyline class="curve__line curve__line--dashed" points="${toPoly(dashed)}"></polyline>` : ''}
       <line class="curve__now" x1="${dotX}" y1="${padT}" x2="${dotX}" y2="${gridBase}"></line>
@@ -134,21 +141,21 @@ function curveSVG({ points, currentDay, currentDaily }) {
 }
 
 /**
- * 分区 B 尾部的衰减曲线块。
+ * 分区 B 的衰减曲线块。v2.2 起常显（此前折叠在 <details> 里）——
+ * 它是本站唯一的真实图形资产，藏起来等于没有；数据含义一行未改。
  * @param {object|null} summary curveSummary() 的返回值
  * @param {{ points: object[], currentDay: number, currentDaily: number }} svgData
  */
 export function curveBlockHTML(summary, svgData) {
   if (!summary) return '';
   return `
-    <details class="details details--curve" id="curve-details">
-      <summary class="details__summary">${curveSummaryText(summary)}</summary>
-      <div class="details__body">
-        ${curveSVG(svgData)}
-        <p class="curve__note">这条曲线只做一件事：把已付金额摊到更多天。摊分数学不等于继续持有更划算
-        ——本工具不判断该不该留，也不构成任何建议。</p>
-      </div>
-    </details>`;
+    <div class="curve-block" id="curve-block">
+      <div class="curve-block__title">成本衰减曲线</div>
+      <p class="curve-block__summary">${curveSummaryText(summary)}</p>
+      ${curveSVG(svgData)}
+      <p class="curve__note">这条曲线只做一件事：把已付金额摊到更多天。摊分数学不等于继续持有更划算
+      ——本工具不判断该不该留，也不构成任何建议。</p>
+    </div>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -198,12 +205,17 @@ function historyRowHTML(entry) {
 function rankCardHTML(ranked) {
   if (ranked.length < 2) return '';
   const top = ranked.slice(0, 3);
+  // 条形按「相对首名的日均」定宽（ranked 降序，首名即最大）。不承载新数据，
+  // 只把已有的对比关系画出来；最小 8% 保证差距再大也看得见
+  const maxDaily = top[0].daily;
   const items = top.map((entry, i) => {
     const name = entry.record.input.deviceName.trim() || '未命名设备';
+    const width = maxDaily > 0 ? Math.round(Math.max(0.08, entry.daily / maxDaily) * 100) : 0;
     return `
       <li class="rank__item">
         <span class="rank__no">${i + 1}</span>
         <span class="rank__name">${escapeHtml(name)}</span>
+        <span class="rank__bar" aria-hidden="true"><i style="width: ${width}%"></i></span>
         <span class="rank__daily">${formatDaily(entry.daily)}<span class="unit">/天</span></span>
       </li>`;
   }).join('');

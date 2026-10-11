@@ -1,32 +1,37 @@
 /* ==========================================================================
    持有成本账本 — 样式表
-   原则：浅色中性背景 / 深灰近黑正文 / 单一低饱和强调色 / 圆角 6–8px
-        移动端优先 / 无渐变 / 无装饰插画 / 无光效
+   原则：暖纸底 / 暖墨正文 / 单一铜色强调 / 圆角 8–10px
+        移动端优先 / 无装饰渐变（刻度线由 repeating-gradient 生成，纯装饰不承载
+        数据含义）/ 无插画 / 无光效
    数字层级：主金额 > 百分比与日均 > 公式与说明
+   标题与主数字用宋体栈（--font-display，系统自带，零加载成本）：
+   「账本 / 年报」的出版物气质，是 v2.1 视觉升级的支点。
    ========================================================================== */
 
 :root {
-  /* 表面与文字 */
-  --bg:            #FAFAF8;
+  /* 表面与文字（v2.1 墨与铜：暖纸底 + 暖墨正文，去掉原来近乎无存在感的灰蓝） */
+  --bg:            #F6F3EE;
   --surface:       #FFFFFF;
-  --surface-sunken:#F3F3F0;
-  --border:        #E3E3DF;
-  --border-strong: #D0D0CB;
+  --surface-sunken:#EFEBE3;
+  --border:        #E8E1D5;
+  --border-strong: #D6CFC2;
 
-  --text:          #1E1E1C;
-  --text-secondary:#585853;
-  /* muted ≈5.7:1 / faint ≈4.7:1，均过 WCAG AA 4.5:1；
-     说明性文字再小也必须可读——「估算值」「按 N 天摊分」是口径承诺的一部分 */
-  --text-muted:    #63635D;
-  --text-faint:    #70706A;
+  --text:          #1B1712;
+  --text-secondary:#5C564C;
+  /* muted ≈5.6:1 / faint ≈4.9:1（纸底上实测），均过 WCAG AA 4.5:1；
+     说明性文字再小也必须可读——「估算值」「按 N 天摊分」是口径承诺的一部分。
+     色值经脚本逐组合校验（含下沉灰底 #EFEBE3 上的 4.53:1 最差组合）。 */
+  --text-muted:    #676052;
+  --text-faint:    #706A5A;
   /* 仅用于输入占位符等纯装饰场景，不承担语义 */
-  --text-placeholder:#A8A8A2;
+  --text-placeholder:#A39C90;
 
-  /* 唯一低饱和强调色 */
-  --accent:        #3E6580;
-  --accent-dark:   #32536A;
-  --accent-tint:   #EDF2F5;
-  --accent-line:   #C3D2DC;
+  /* 唯一强调色：铜。在纸底上 4.56:1（链接文字过 AA），
+     同时承担「账本的铜墨」这个品牌记忆点 */
+  --accent:        #A65B2E;
+  --accent-dark:   #8A4A24;
+  --accent-tint:   #F2E8DE;
+  --accent-line:   #E0CDBB;
 
   /* 状态色（低饱和，只用于提示与错误，不表达涨跌） */
   --warn-text:     #7A5C22;
@@ -37,20 +42,31 @@
   --error-line:    #E8CBC6;
 
   /* 尺寸 */
-  --radius:        7px;
-  --radius-sm:     6px;
+  --radius:        10px;
+  --radius-sm:     8px;
   --radius-pill:   999px;
 
   --measure:       660px;
   --gutter:        20px;
 
-  /* 字体 */
+  /* 白卡浮在纸底上的暖调阴影——不用纯黑，避免在暖纸上发脏 */
+  --shadow-card:   0 1px 2px rgba(62, 44, 26, 0.05), 0 3px 12px rgba(62, 44, 26, 0.06);
+
+  /* 字体：正文用系统无衬线栈；标题与主数字用宋体栈。
+     思源宋体（装了就有）/ 宋体 SC（macOS）/ SimSun（Windows 兜底）——
+     全部是系统字体，零网络加载，也不破坏「不引入依赖」的约束 */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
           "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC",
           "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Source Han Serif SC", "Source Han Serif CN", "Noto Serif SC",
+          "Songti SC", "STSong", "SimSun", serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
                "Liberation Mono", monospace;
 }
+
+/* 工具页（index.html）桌面双栏需要更宽的版心；design.html 不加 .app，
+   保持 660px 的阅读测量宽度 */
+body.app { --measure: 1040px; }
 
 /* --------------------------------------------------------------------------
    Reset
@@ -103,7 +119,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(250, 250, 248, 0.92);
+  background: rgba(246, 243, 238, 0.92);
   backdrop-filter: saturate(160%) blur(8px);
   border-bottom: 1px solid var(--border);
 }
@@ -121,11 +137,21 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+/* 品牌记号：铜色圆角方块 + 一条斜线（「把价格摊到每一天」的斜线母题） */
+.brand__mark {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: block;
 }
 .brand:hover { text-decoration: none; color: var(--accent); }
 
@@ -178,7 +204,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   border: 1px solid var(--accent-line);
   border-radius: var(--radius);
   padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(30, 30, 28, 0.06);
+  box-shadow: var(--shadow-card);
 }
 .creator__head {
   display: flex;
@@ -221,16 +247,112 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 
 .page__title {
-  font-size: 25px;
-  line-height: 1.35;
+  font-family: var(--font-display);
+  font-size: 31px;
+  line-height: 1.3;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   margin-bottom: 8px;
 }
 
 .page__sub {
   color: var(--text-secondary);
   margin-bottom: 28px;
+}
+
+/* --------------------------------------------------------------------------
+   首屏双栏（v2.2）：左深色陈述卡 / 右表单列
+   深色元素只用在首屏这一处 hero 与页脚——与纸色主体形成「深浅交替」，
+   不是整站变黑。卡内的竖纹是账本格线的暗示（纯装饰，7% 透明）。
+   -------------------------------------------------------------------------- */
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.98fr) minmax(0, 1.02fr);
+  gap: 26px;
+  align-items: stretch;
+}
+
+.hero-pitch {
+  background-color: #201A14;
+  background-image: repeating-linear-gradient(
+    90deg, rgba(200, 127, 74, 0.08) 0 1px, transparent 1px 26px);
+  border-radius: 16px;
+  padding: 34px 32px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.hero-pitch__kicker {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #C87F4A;      /* 亮铜：深底上 5.4:1，过 AA */
+}
+.hero-pitch .page__title {
+  color: #F2EDE5;      /* 纸白：14.8:1 */
+  font-size: clamp(28px, 6.5vw, 34px);
+  line-height: 1.28;
+  margin-bottom: 0;
+}
+.hero-pitch__sub {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: #B8AFA2;      /* 7.9:1 */
+}
+
+/* 示例读数：先把「输出长什么样」给访客看，再让他自己填 */
+.hero-demo {
+  margin-top: auto;    /* 推到卡片底部 */
+  padding-top: 22px;
+  border-top: 1px solid #3A322A;
+}
+.hero-demo__label {
+  font-size: 12px;
+  color: #B8AFA2;
+  margin-bottom: 6px;
+}
+.hero-demo__value {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #F2EDE5;
+  font-variant-numeric: tabular-nums;
+}
+.hero-demo__value .unit {
+  font-size: 14px;
+  font-weight: 400;
+  color: #B8AFA2;
+  margin-left: 5px;
+}
+.hero-demo__ticks {
+  height: 12px;
+  margin-top: 14px;
+  background-image:
+    repeating-linear-gradient(90deg, #C87F4A 0 2px, transparent 2px 90px),
+    repeating-linear-gradient(90deg, #4A423A 0 1px, transparent 1px 18px);
+  background-repeat: repeat-x;
+  background-size: auto 12px, auto 6px;
+  background-position: left bottom, left bottom;
+}
+.hero-pitch__hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #B8AFA2;
+}
+
+.hero-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hero-form .ocr { margin-bottom: 0; }
+
+@media (max-width: 880px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 16px; }
+  .hero-pitch { padding: 26px 22px 24px; border-radius: 14px; }
+  .hero-demo { margin-top: 0; }
 }
 
 /* 分区之间用发丝线与留白分隔，不做卡片嵌套 */
@@ -249,12 +371,14 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 }
 .reveal-in { animation: reveal-in .28s ease-out; }
 
+/* 分区标题做成铜色小标签（kicker）：三个分区都是流程节点，
+   用品牌色标出「现在走到哪一步」 */
 .section__title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--accent);
   margin-bottom: 16px;
 }
 
@@ -268,6 +392,42 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
    -------------------------------------------------------------------------- */
 
 .form { display: block; }
+
+/* 表单卡（v2.2）：输入区收进一张白卡，与左侧深色陈述卡成对 */
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 24px 18px;
+  box-shadow: var(--shadow-card);
+}
+.form-card .field:last-of-type { margin-bottom: 0; }
+.form-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.form-card__hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.link-action {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-action:hover { color: var(--accent-dark); }
 
 .field { margin-bottom: 22px; }
 
@@ -411,7 +571,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   background: var(--surface);
   color: var(--accent-dark);
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(62, 44, 26, 0.08);
 }
 
 /* --------------------------------------------------------------------------
@@ -470,6 +630,24 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
    结果区
    -------------------------------------------------------------------------- */
 
+/* 读数面板（v2.2）：数字、刻度、曲线同装在一张白卡里——
+   「当前持有成本」成为一个完整的读数，而不是散落在纸面上的几段 */
+.reading-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 26px 26px 24px;
+  box-shadow: var(--shadow-card);
+}
+/* 面板内部不再嵌套投影（盒中盒会发脏），层级交给边框与分隔线 */
+.reading-panel .stats,
+.reading-panel .notice { box-shadow: none; }
+
+@media (max-width: 560px) {
+  .reading-panel { padding: 20px 18px 18px; border-radius: 12px; }
+  .form-card { padding: 20px 18px 16px; border-radius: 12px; }
+}
+
 /* 主数字：金额最大 */
 .result-hero {
   padding: 4px 0 20px;
@@ -480,15 +658,16 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   margin-bottom: 6px;
 }
 .result-hero__value {
-  font-size: 44px;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 9.5vw, 56px);
   line-height: 1.1;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 .result-hero__value .unit {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 400;
   color: var(--text-muted);
   margin-left: 6px;
@@ -500,15 +679,30 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   margin-top: 8px;
 }
 
+/* 时间刻度线：「日均」的语义是「每天」，用一条刻度尺把它画出来。
+   纯装饰（aria-hidden），长度与密度均不对应真实数值——数据可视化仍然
+   只有下方那条真实的衰减曲线；这条线只承担「时间在走」的品牌符号角色。 */
+.result-hero__ticks {
+  height: 14px;
+  margin-top: 16px;
+  background-image:
+    repeating-linear-gradient(90deg, var(--accent) 0 2px, transparent 2px 90px),
+    repeating-linear-gradient(90deg, var(--accent-line) 0 1px, transparent 1px 18px);
+  background-repeat: repeat-x;
+  background-size: auto 14px, auto 7px;
+  background-position: left bottom, left bottom;
+}
+
 /* 分区 C（扣除残值后）是流程的终点与差异化价值所在，视觉权重要高于中间产物：
-   数字更大 + 左侧 2px accent 竖条（复用 design.html「竖线 = 关键」的既有语言）。
-   clamp 兜底移动端：区间形态（¥X – ¥Y）在窄屏缩到 34px 不溢出 */
+   数字更大 + 左侧 3px 铜色竖条（复用 design.html「竖线 = 关键」的既有语言）。
+   clamp 兜底移动端：区间形态（¥2,000 – ¥5,000，16+ 字符）在窄屏缩到
+   36px 仍不溢出（360px 屏可用宽 ≈320px，宋体数字 0.5em 宽，16 字符 ≈288px） */
 .result-hero--final {
-  border-left: 2px solid var(--accent);
+  border-left: 3px solid var(--accent);
   padding-left: 16px;
 }
 .result-hero--final .result-hero__value {
-  font-size: clamp(34px, 9vw, 52px);
+  font-size: clamp(36px, 10vw, 60px);
 }
 
 /* 次级指标 */
@@ -520,6 +714,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 .stats--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
@@ -560,6 +755,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.6;
+  box-shadow: var(--shadow-card);
 }
 .notice__title {
   font-weight: 500;
@@ -619,7 +815,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   transition: background .12s ease, border-color .12s ease;
 }
 .feedback-entry:hover {
-  background: #E4EBF0;
+  background: #E9DACB;
   border-color: var(--accent);
 }
 .feedback-entry__title {
@@ -736,6 +932,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   background: var(--surface);
   padding: 15px 16px;
   margin-bottom: 26px;
+  box-shadow: var(--shadow-card);
 }
 .ocr__head {
   display: flex;
@@ -878,7 +1075,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   align-items: flex-end;
   justify-content: center;
   padding: 0;
-  background: rgba(30, 30, 28, 0.32);
+  background: rgba(27, 23, 18, 0.32);
 }
 .feedback[hidden] { display: none; }
 
@@ -989,10 +1186,11 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   margin-bottom: 10px;
 }
 .doc__title {
-  font-size: 26px;
+  font-family: var(--font-display);
+  font-size: 30px;
   line-height: 1.35;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   margin-bottom: 12px;
 }
 .doc__lead {
@@ -1004,9 +1202,10 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .doc__section { margin-bottom: 44px; }
 
 .doc__h2 {
-  font-size: 19px;
+  font-family: var(--font-display);
+  font-size: 20px;
   font-weight: 600;
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   margin-bottom: 6px;
   display: flex;
   align-items: baseline;
@@ -1180,20 +1379,23 @@ td.num, th.num {
 }
 .limit strong { color: var(--text); }
 
-/* 页脚 */
+/* 页脚：深色收尾，与首屏的深色陈述卡呼应（首尾深、中间纸色） */
 .footer {
-  border-top: 1px solid var(--border);
-  margin-top: 40px;
+  margin-top: 48px;
+  background: #201A14;
 }
 .footer__inner {
   max-width: var(--measure);
   margin: 0 auto;
-  padding: 22px var(--gutter) 40px;
+  padding: 26px var(--gutter) 42px;
   font-size: 12.5px;
-  color: var(--text-muted);
+  color: #B8AFA2;
   line-height: 1.7;
 }
 .footer__inner p + p { margin-top: 6px; }
+.footer strong { color: #F2EDE5; font-weight: 600; }
+.footer a { color: #C87F4A; }
+.footer a:hover { color: #E0A477; }
 .footer__links { margin-top: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
 
 /* 视觉隐藏但可读屏 */
@@ -1247,18 +1449,36 @@ td.num, th.num {
 }
 .save-row__note[hidden] { display: none; }
 
-/* 衰减曲线：内联 SVG，无图表库。
-   结论句在 <summary> 里，展开只是看形状 */
-.details--curve { margin-top: 18px; }
-.details--curve .details__summary { font-size: 14px; }
+/* 衰减曲线：内联 SVG，无图表库。v2.2 起常显（从折叠提到明面）——
+   它是本站唯一的真实图形资产，与读数面板形成「数字 + 形状」的组合 */
+.curve-block {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.curve-block__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.curve-block__summary {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--accent-dark);
+  margin-bottom: 10px;
+}
 
 .curve__svg {
   display: block;
   width: 100%;
+  max-width: 720px;    /* 面板变宽后限制图幅，避免轴标签被等比放得过大 */
   height: auto;
-  margin: 4px 0 12px;
+  margin: 4px auto 12px;
 }
-.curve__grid line { stroke: var(--border); stroke-width: 1; }
+.curve__grid line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 5; }
+/* 实线段的面积填充（v2.2）：把「已经走过」的部分画实 */
+.curve__area { fill: var(--accent); fill-opacity: 0.1; }
 .curve__labels text {
   fill: var(--text-muted);
   font-size: 11px;
@@ -1317,6 +1537,7 @@ td.num, th.num {
   background: var(--surface);
   padding: 14px 16px;
   margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
 }
 .rank__title {
   font-size: 14px;
@@ -1327,10 +1548,28 @@ td.num, th.num {
 .rank__list { display: grid; gap: 8px; }
 .rank__item {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
-  align-items: baseline;
+  grid-template-columns: 20px minmax(0, 1fr) 96px auto;
+  align-items: center;
   gap: 10px;
   font-size: 14px;
+}
+/* 对比条（v2.2）：把「谁更贵」的相对关系画出来；宽度由 JS 按日均占比写入 */
+.rank__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.rank__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+@media (max-width: 559px) {
+  .rank__item { grid-template-columns: 20px minmax(0, 1fr) auto; }
+  .rank__bar { display: none; }
 }
 .rank__no {
   font-size: 12px;
@@ -1369,6 +1608,7 @@ td.num, th.num {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 .history__row {
   background: var(--surface);
@@ -1436,6 +1676,8 @@ td.num, th.num {
 @media (min-width: 560px) {
   .history__row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .history__ops { grid-column: auto; }
+  /* 账页式数字列（v2.2）：桌面端日均数字右对齐成一列——账本的口径感 */
+  .history__nums { justify-items: end; text-align: right; }
 }
 
 .history__privacy {

@@ -100,9 +100,10 @@ const CURVE = (() => {
   };
 })();
 
-test('curveBlockHTML：结论句嵌在 summary 里，点开才看到 SVG', () => {
+test('curveBlockHTML：常显展示（v2.2 起），结论句与 SVG 直接可见', () => {
   const html = curveBlockHTML(CURVE.summary, CURVE.svgData);
-  assert.ok(html.includes('curve-details'));
+  assert.ok(html.includes('curve-block'));
+  assert.ok(!html.includes('<details'));   // 不再折叠：曲线提到明面
   assert.ok(html.includes('降到一半'));
   assert.ok(html.includes('再持有 367 天'));
   assert.ok(html.includes('/天以内'));
@@ -116,8 +117,9 @@ test('curveBlockHTML：SVG 无障碍属性与边界声明', () => {
   assert.ok(html.includes('不判断该不该留'));
 });
 
-test('curveBlockHTML：当前点左侧实线右侧虚线', () => {
+test('curveBlockHTML：当前点左侧实线（带面积）右侧虚线', () => {
   const html = curveBlockHTML(CURVE.summary, CURVE.svgData);
+  assert.ok(html.includes('curve__area'));   // v2.2：实线区面积填充
   assert.ok(html.includes('curve__line'));
   assert.ok(html.includes('curve__line--dashed'));
   assert.ok(html.includes('curve__dot'));
@@ -191,6 +193,7 @@ test('historySectionHTML：≥2 台才渲染排行卡，且注明口径', () => 
   });
   assert.ok(two.includes('日均最贵'));
   assert.ok(two.includes('仅对比日均购置成本'));
+  assert.ok(two.includes('rank__bar'));   // v2.2：相对日均的对比条
 });
 
 test('historySectionHTML：隐私说明如实——本机存储、会丢、共用电脑可见', () => {

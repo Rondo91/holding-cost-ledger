@@ -7,18 +7,21 @@
 
 import { fullResult } from './calc.js';
 import {
-  parseAmount, toDisplayAmount, priceBand, daysBand, recoveryBand,
+  parseAmount, toDisplayAmount, priceBand, daysBand, recoveryBand, formatNumber,
 } from './format.js';
 import {
   validateDeviceName, validatePrice, validatePurchaseDate, validateSecondHand,
 } from './validate.js';
+// v2.1 改动过 views.js（刻度线）与 views-history.js（曲线常显 / 面积填充 / 排行条）。
+// 版本号不能省：只给入口 app.js 加 ?v=，浏览器仍会拿旧模块——
+// 新结构对不上新样式，页面只在老用户的缓存里坏掉。
 import {
   baseSectionHTML, residualAreaHTML, fullSectionHTML, formulaHTML,
   ocrReviewHTML, escapeHtml,
-} from './views.js';
+} from './views.js?v=2.1.0';
 import {
   benchmarkHintHTML, curveBlockHTML, historySectionHTML, recallBannerHTML,
-} from './views-history.js';
+} from './views-history.js?v=2.1.0';
 import { benchmarkHint } from './benchmark.js';
 import { CATEGORY_OPTIONS, categoryLabel, inferCategory } from './category.js';
 import { curveWindow, curvePoints, curveSummary } from './curve.js';
@@ -250,6 +253,42 @@ function validateAll({ show }) {
 
 /* 当前处于可见状态的结果类元素：只在「隐藏 → 显示」的沿上播出现动画 */
 const visibleNow = new WeakSet();
+
+const prefersReducedMotion = () =>
+  Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/**
+ * 主数字滚动出场（v2.2）：只在结果区「首次揭示」时播一次，之后输入更新直接跳
+ * ——已展示过还每次滚动的话，打字时数字会一直乱跳。区间形态（a – b）不滚，
+ * 两个数同时滚没有意义；prefers-reduced-motion 下直接显示终值。
+ */
+function countUpHeroValue(scope) {
+  const value = scope?.querySelector('.result-hero__value');
+  const textNode = value?.firstChild;
+  if (!textNode || textNode.nodeType !== 3) return;   // 数字必须是文本首节点
+  if (prefersReducedMotion()) return;
+
+  const raw = textNode.textContent.trim();
+  const m = raw.match(/^¥([\d,]+(?:\.\d+)?)$/);
+  if (!m) return;                                     // 区间 / 收益等形态直接显示
+
+  const decimals = m[1].includes('.') ? m[1].split('.')[1].length : 0;
+  const target = Number(m[1].replace(/,/g, ''));
+  if (!Number.isFinite(target) || target <= 0) return;
+
+  const DURATION = 450;
+  const start = performance.now();
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+  const frame = (now) => {
+    const t = Math.min(1, (now - start) / DURATION);
+    textNode.textContent = `¥${formatNumber(target * easeOut(t), decimals)}`;
+    if (t < 1) requestAnimationFrame(frame);
+    else textNode.textContent = raw;   // 收尾回到原字符串，避免格式化误差
+  };
+  textNode.textContent = `¥${formatNumber(0, decimals)}`;
+  requestAnimationFrame(frame);
+}
+
 function animateNewlyShown() {
   [el.secBase, el.secFull, el.formula, el.feedbackEntry].forEach((node) => {
     if (!node) return;
@@ -258,6 +297,9 @@ function animateNewlyShown() {
       node.classList.remove('reveal-in');
       void node.offsetWidth;   // 重启动画（同一元素反复出现时）
       node.classList.add('reveal-in');
+      // 结果区首次出现时，主数字滚动出场（两个结果分区各自一次）
+      if (node === el.secBase) countUpHeroValue(el.baseBody);
+      else if (node === el.secFull) countUpHeroValue(el.fullBody);
     } else if (node.hidden) {
       visibleNow.delete(node);
     }
@@ -338,8 +380,10 @@ function render() {
 
 /**
  * 曲线只依赖 P 与 D，有基础结果就能画。
- * 用签名比对避免每次输入都重绘——重绘会把用户已经展开的 <details> 合上，
- * 那种「点开了又被关掉」比没有展开更烦人。
+ * 用签名比对避免每次输入都重绘——v2.2 起曲线常显，重绘不再有「折叠被合上」
+ * 之虞，但白重绘一个 SVG 仍是不必要的开销。
+ * v2.2 起 curve_expanded 埋点随「曲线常显」自然退役：用户不再需要任何展开
+ * 动作，该事件没有对应行为，不再上报（数据表白名单保留，不删旧事件）。
  */
 function renderCurve(result) {
   const sig = `${result.price}|${result.days}`;
@@ -356,17 +400,6 @@ function renderCurve(result) {
     currentDay: result.days,
     currentDaily: summary.currentDaily,
   });
-
-  const details = el.curveBody.querySelector('#curve-details');
-  if (details) {
-    details.addEventListener('toggle', () => {
-      if (!details.open) return;
-      trackOnce('curve_expanded', 'curve_expanded', {
-        step: 'base',
-        props: { section: 'curve' },
-      });
-    });
-  }
 }
 
 /**
@@ -808,11 +841,40 @@ function bindResidualInputs() {
  * 委托点击
  * ------------------------------------------------------------------ */
 
+/**
+ * 示例预填（v2.2）：访客不用先想数据就能看到产品输出。
+ * 故意不新增埋点事件——示例值混进真实输入的统计会污染口径，
+ * 而埋点白名单是数据库约束的一部分，不为教程功能改表。
+ * 后续真实的输入/结果事件照常产生（用户确实看到了结果）。
+ */
+const DEMO_INPUT = {
+  deviceName: 'iPhone 13 128G',
+  purchaseDate: '2023-09-15',
+  priceRaw: '4999',
+};
+
+function fillDemo() {
+  state.deviceName = DEMO_INPUT.deviceName;
+  state.purchaseDate = DEMO_INPUT.purchaseDate;
+  state.priceRaw = DEMO_INPUT.priceRaw;
+  state.category = 'auto';   // 让名称推断接管（iPhone → 手机）
+  el.device.value = DEMO_INPUT.deviceName;
+  el.date.value = DEMO_INPUT.purchaseDate;
+  el.price.value = DEMO_INPUT.priceRaw;
+  if (el.category) el.category.value = 'auto';
+  requestUpdate({ settleNow: true });
+}
+
 function bindActions() {
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
+
+    if (action === 'demo-fill') {
+      fillDemo();
+      return;
+    }
 
     if (action === 'residual-open') {
       state.residualFormOpen = true;

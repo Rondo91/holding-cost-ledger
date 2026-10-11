@@ -42,6 +42,7 @@ export function baseSectionHTML(result) {
       <div class="result-hero__label">日均购置成本</div>
       <div class="result-hero__value">${formatDaily(result.dailyAmortized)}<span class="unit">/天</span></div>
       <div class="result-hero__note">按 ${formatDays(result.days)} 摊分 · 估算值</div>
+      <div class="result-hero__ticks" aria-hidden="true"></div>
     </div>`;
 
   const stats = `

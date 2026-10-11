@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>持有成本账本 — 算清一台设备每天花掉你多少钱</title>
 <meta name="description" content="填入购买日期和实付金额，立刻看到日均购置成本；再补充当前二手价，得到扣除残值后的真实持有成本和回收率。不需要注册，截图不上传。">
-<meta name="theme-color" content="#FAFAF8">
+<meta name="theme-color" content="#F6F3EE">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="assets/css/styles.css?v=2.0.0">
+<link rel="stylesheet" href="assets/css/styles.css?v=2.1.0">
 </head>
-<body>
+<body class="app">
 
 <header class="topbar">
   <div class="topbar__inner">
-    <a class="brand" href="index.html">持有成本账本</a>
+    <a class="brand" href="index.html"><svg class="brand__mark" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect width="20" height="20" rx="5" fill="#A65B2E"/><path d="M5.5 14.5L14.5 5.5" stroke="#F6F3EE" stroke-width="2" stroke-linecap="round"/></svg>持有成本账本</a>
     <nav class="nav" aria-label="主导航">
       <a class="nav__link nav__link--active" href="index.html" aria-current="page">工具</a>
       <a class="nav__link" href="design.html">设计说明</a>
@@ -38,12 +38,25 @@
 
   <!-- ================= 分区 A：输入 ================= -->
   <section class="section" id="sec-input">
-    <h1 class="page__title">这台设备，你每天为它花了多少钱？</h1>
-    <p class="page__sub">填入购买日期和实付金额就能得到第一个结果。填入的数字不上传；主动记入账本的记录只存在你的浏览器里。</p>
+    <div class="hero-grid">
+      <!-- 左：深色陈述卡——与右侧纸白表单形成深浅对撞（v2.2） -->
+      <div class="hero-pitch">
+        <p class="hero-pitch__kicker">设备持有成本 · 个人工具</p>
+        <h1 class="page__title">这台设备，你每天为它花了多少钱？</h1>
+        <p class="hero-pitch__sub">填入购买日期和实付金额就能得到第一个结果。填入的数字不上传；主动记入账本的记录只存在你的浏览器里。</p>
+        <div class="hero-demo">
+          <div class="hero-demo__label">示例 · iPhone 13 已持有 1,123 天</div>
+          <div class="hero-demo__value">¥4.45<span class="unit">/天</span></div>
+          <div class="hero-demo__ticks" aria-hidden="true"></div>
+        </div>
+        <p class="hero-pitch__hint">手里没有数据？右侧表单里可以「用示例试试」，直接看结果。</p>
+      </div>
 
-    <div id="recall-banner"></div>
+      <!-- 右：表单列 -->
+      <div class="hero-form">
+        <div id="recall-banner"></div>
 
-    <div class="ocr" id="ocr">
+        <div class="ocr" id="ocr">
       <div class="ocr__head">
         <span class="ocr__title">从订单截图自动填入</span>
         <span class="ocr__tag">AI 识别</span>
@@ -62,7 +75,7 @@
       <div class="ocr-result" id="ocr-result" hidden></div>
     </div>
 
-    <form class="form" id="form" novalidate autocomplete="off">
+    <form class="form form-card" id="form" novalidate autocomplete="off">
       <div class="field">
         <label class="field__label" for="f-device">设备名称<span class="field__req">选填</span></label>
         <input class="field__input" id="f-device" name="device" type="text" maxlength="60"
@@ -92,20 +105,30 @@
         <p class="field__hint" id="h-price">已扣除优惠后的实付金额，不含同一订单里的其他商品。</p>
         <p class="field__error" id="e-price" role="status" hidden></p>
       </div>
-    </form>
+        <p class="form-card__foot">
+          <span class="form-card__hint">输入即出结果，无需提交</span>
+          <button type="button" class="link-action" data-action="demo-fill">没有数据？用示例试试</button>
+        </p>
+      </form>
+      </div>
+    </div>
   </section>
 
   <!-- ================= 分区 B：基础结果 ================= -->
   <section class="section" id="sec-base" hidden>
     <h2 class="section__title">当前持有成本</h2>
-    <div id="base-body"></div>
 
-    <div class="save-row" id="save-row" hidden>
-      <div class="btn-row" id="save-btns"></div>
-      <p class="save-row__note" id="save-note" role="status" hidden></p>
+    <!-- 读数面板：数字、刻度、曲线在同一个白色面板内形成整体（v2.2 结构改版） -->
+    <div class="reading-panel">
+      <div id="base-body"></div>
+
+      <div class="save-row" id="save-row" hidden>
+        <div class="btn-row" id="save-btns"></div>
+        <p class="save-row__note" id="save-note" role="status" hidden></p>
+      </div>
+
+      <div id="curve-body"></div>
     </div>
-
-    <div id="curve-body"></div>
 
     <div class="residual-call" id="residual-call">
       <div id="residual-body"></div>
@@ -225,6 +248,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
 <script type="module" src="assets/js/creator.js?v=2.0.0"></script>
-<script type="module" src="assets/js/app.js?v=2.0.0"></script>
+<script type="module" src="assets/js/app.js?v=2.1.0"></script>
 </body>
 </html>
